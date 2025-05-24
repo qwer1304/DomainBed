@@ -2585,7 +2585,7 @@ class GLSD(ERM):
             """    
             n,b = x.size()
             is_y = torch.ones_like(x)
-            is_y = is_y * torch.arange(1,n+1).unsqueeze(1)
+            is_y = is_y * torch.arange(1,n+1,device=is_y.device).unsqueeze(1)
             is_y = is_y.reshape(-1) # n*samples
             eta = x.reshape(-1)
             idx_sort = torch.argsort(eta) # returns indices of eta that would result in it being sorted
