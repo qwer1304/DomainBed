@@ -163,11 +163,14 @@ class ColoredMNIST(MultipleEnvironmentMNIST):
 
 
 class RotatedMNIST(MultipleEnvironmentMNIST):
+    CHECKPOINT_FREQ = 1
     ENVIRONMENTS = ['0', '15', '30', '45', '60', '75']
 
     def __init__(self, root, test_envs, hparams):
         super(RotatedMNIST, self).__init__(root, [0, 15, 30, 45, 60, 75],
                                            self.rotate_dataset, (1, 28, 28,), 10)
+        self.N_WORKERS = 1
+
 
     def rotate_dataset(self, images, labels, angle):
         rotation = transforms.Compose([
