@@ -2592,7 +2592,7 @@ class GLSD(ERM):
             sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order
             sorted_eta = eta[idx_sort] # sort eta
             # Calculate \hat{F}_1(X) for all eta
-            F1 = torch.zeros(n,n*b) # n x n*b
+            F1 = torch.zeros(n,n*b,device=x.device) # n x n*b
             for i in range(0,n):
                 mask = (sorted_is_y == i+1).to(float)
                 F1[i] = torch.cumsum(mask,0) / b
