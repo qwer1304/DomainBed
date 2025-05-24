@@ -2560,7 +2560,12 @@ class GLSD(ERM):
     def __init__(self, input_shape, num_classes, num_domains, hparams):
         super(GLSD, self).__init__(input_shape, num_classes, num_domains,
                                   hparams)
-        rb = ReplayBuffer(storage=LazyTensorStorage(5*num_domains*hparams['batch_size'], ndim=1), sampler=SamplerWithoutReplacement(), 
+        if torch.cuda.is_available():
+            device = "cuda"
+        else:
+            device = "cpu"
+
+        rb = ReplayBuffer(storage=LazyTensorStorage(5*num_domains*hparams['batch_size'], ndim=1, device=device), sampler=SamplerWithoutReplacement(), 
             batch_size=num_domains*hparams['batch_size'],)# dim_extend=1,)
         self.buffer = rb
         self.hparams = hparams
