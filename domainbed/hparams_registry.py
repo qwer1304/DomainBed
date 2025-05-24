@@ -27,9 +27,9 @@ def _hparams(algorithm, dataset, random_seed):
 
     # Unconditional hparam definitions.
 
-    _hparam('data_augmentation', True, lambda r: True)
-    _hparam('resnet18', True, lambda r: False)
-    _hparam('resnet50_augmix', True, lambda r: True)
+    _hparam('data_augmentation', False, lambda r: False)
+    _hparam('resnet18', True, lambda r: True)
+    _hparam('resnet50_augmix', False, lambda r: False)
     _hparam('dinov2', False, lambda r: False)
     _hparam('vit', False, lambda r: False)
     _hparam('vit_attn_tune', False, lambda r: False)
@@ -188,8 +188,7 @@ def _hparams(algorithm, dataset, random_seed):
             
     elif algorithm == "GLSD":
         _hparam('glsd_lambda', -1e1, lambda r: -1e1)#-10**r.uniform(-1, 5)) # FIX ME!
-
-
+        _hparam('update_worst_env_every_steps', 10, lambda r: 10)#-10**r.uniform(-1, 5))
 
     if algorithm == "ADRMX":
         _hparam('cnt_lambda', 1.0, lambda r: r.choice([1.0]))

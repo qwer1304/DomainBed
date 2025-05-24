@@ -2569,6 +2569,9 @@ class GLSD(ERM):
             batch_size=num_domains*hparams['batch_size'],)# dim_extend=1,)
         self.buffer = rb
         self.hparams = hparams
+        self.register_buffer('update_count', torch.tensor([0]))
+        self.register_buffer('worst_env', torch.tensor([0]))
+
         """
         self.optimizer = torch.optim.SGD(
             self.network.parameters(),
@@ -2827,9 +2830,12 @@ class GLSD(ERM):
         losses = torch.stack(losses) # env x b, Concatenates a sequence of tensors along a new dimension.
 
         worst_env, F1, F2, sorted_eta = dominating_2nd_cdf(-losses) # F1, F2, sorted_eta depend on network
-
+        update_worst_env_every_steps = self.hparams['update_worst_env_every_steps']
+        if self.update_count.item() % update_worst_env_every_steps != 0:
+            worst_env = self.worst_env
+        else:
+            self.worst_env = worst_env
         worst_env = worst_env.detach().clone()
-        #sorted_eta = sorted_eta.detach().clone()
         
         lambdas = self.hparams['glsd_lambda'] * torch.ones(len(minibatches), device=losses.device)
         lambdas[worst_env] = 1 - torch.sum(lambdas[1:])
@@ -2861,6 +2867,7 @@ class GLSD(ERM):
             "sorted_eta": sorted_eta.detach(),
         }
         self.buffer.extend(data)
+        self.update_count += 1
 
         return {'loss': loss.item(), 'nll': nll.mean().item()}               
 
