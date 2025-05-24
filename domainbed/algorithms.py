@@ -2621,7 +2621,7 @@ class GLSD(ERM):
             if satisfying_i.nelement() == 0: 
                 satisfying_i = torch.argmax(torch.sum((diffs[:,:,1:] < 0).to(float),(1,2))) #torch.tensor([0]) # whatever
                 logging.warning("No dominating environment! Choosing: %d", satisfying_i.item())
-                print(diffs)
+                #print(diffs)
             else:
                 logging.warning("Dominating environment: %d", satisfying_i.item())
                        
