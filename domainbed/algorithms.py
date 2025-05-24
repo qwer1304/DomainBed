@@ -2609,7 +2609,7 @@ class GLSD(ERM):
 
             # Strict condition: T[i] < T[j] elementwise for all j != i
             # disregard self-diff, disregard F2(0) since it's set to 0 for all environments
-            strictly_less = torch.logical_or((diffs[:,:,1:] < 0).all(dim=2), torch.eye(n,dtype=torch.bool)) 
+            strictly_less = torch.logical_or((diffs[:,:,1:] < 0).all(dim=2), torch.eye(n,dtype=torch.bool,device=x.device)) 
 
             # Find i such that T[i] < T[j] for all j != i
             satisfying_i = torch.where(strictly_less.all(dim=1))[0]
