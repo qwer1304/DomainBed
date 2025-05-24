@@ -2832,11 +2832,12 @@ class GLSD(ERM):
         F2 = (F2 * lambdas.unsqueeze(1)).sum(0)   
         
         if len(self.buffer) == 0:
+            device = F1.device  # or sorted_eta.device
             data = {
-                "F1": torch.rand_like(F1),  # FIX ME!
-                "F2": torch.rand_like(F2),  # FIX ME!
-                "sorted_eta": sorted_eta.detach()
-            }
+                "F1": torch.rand_like(F1, device=device),
+                "F2": torch.rand_like(F2, device=device),
+                "sorted_eta": sorted_eta.detach().to(device)
+            }                       
             self.buffer.extend(data)
         
         ref = self.buffer.sample()
