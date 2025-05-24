@@ -2569,12 +2569,14 @@ class GLSD(ERM):
             batch_size=num_domains*hparams['batch_size'],)# dim_extend=1,)
         self.buffer = rb
         self.hparams = hparams
+        """
         self.optimizer = torch.optim.SGD(
             self.network.parameters(),
             lr=0.1,
             momentum=0.9,
             weight_decay=self.hparams['weight_decay']
         )
+        """
 
 
     def update(self, minibatches, unlabeled=None):
@@ -2620,10 +2622,10 @@ class GLSD(ERM):
             satisfying_i = torch.where(strictly_less.all(dim=1))[0]
             if satisfying_i.nelement() == 0: 
                 satisfying_i = torch.argmax(torch.sum((diffs[:,:,1:] < 0).to(float),(1,2))) #torch.tensor([0]) # whatever
-                logging.warning("No dominating environment! Choosing: %d", satisfying_i.item())
+                #logging.warning("No dominating environment! Choosing: %d", satisfying_i.item())
                 #print(diffs)
             else:
-                logging.warning("Dominating environment: %d", satisfying_i.item())
+                #logging.warning("Dominating environment: %d", satisfying_i.item())
                        
             return satisfying_i, F1, F2, sorted_eta
 
