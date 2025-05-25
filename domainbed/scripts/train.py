@@ -116,6 +116,7 @@ if __name__ == "__main__":
     in_splits = []
     out_splits = []
     uda_splits = []
+    print('len dataset:',len(dataset))
     for env_i, env in enumerate(dataset):
         uda = []
 
