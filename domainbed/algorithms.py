@@ -2585,12 +2585,12 @@ class GLSD(ERM):
     def update(self, minibatches, unlabeled=None):
         
         def dominating_2nd_cdf(x):
-            """Second-order dominating cdf.
+            """
+            Second-order dominating cdf.
                 x: n x samples of n distributions, which we want to maximize.
             Returns:
                 The index of dominating cdf
                 Per environment F1
-                Per environment F2
                 sorted_eta eta for which Fk were computed 
             """    
             n,b = x.size()
@@ -2630,102 +2630,13 @@ class GLSD(ERM):
             #else:
                 #logging.warning("Dominating environment: %d", satisfying_i.item())
                        
-            return satisfying_i, F1, F2, sorted_eta
+            return satisfying_i, F1, sorted_eta
 
-        def sd_2nd_cdf(x, y, wx=None, wy=None, rel_tau=0.3, get_utility=False):
+        def xsd_2nd_cdf(F1x, seta_x, F1y, seta_y, rel_tau=0.3, get_utility=False):
             """Second-order stochastic dominance loss. Implements algorithm 2
 
             Args:
-                x, y: Scalar array containing samples from two distributions, which we want to maximize.
-                      x - is the new samples, y - is the reference
-                      x - X_{\theta_{t,\bar{t}}, y - X_{\theta_t}
-                wx, wy: Scalar arrays containing weights of environment distribution
-                rel_tau: Softmax temperature control
-                get_utility: Return array u(x) instead of a scalar loss
-                Shicong commented that when working with sampling dependent on theta (Algorithm 3),
-                you can pass get_utility=True to get ux values and plug it into the REINFORCE algorithm in place of cumulative rewards.
-
-            Returns:
-                Loss value to minimize, or the utility function u(x)
-            """    
-            nX, nY = len(x), len(y)
-            if wx is None:
-                wx = torch.ones_like(x)/nX
-                
-            if wy is None:
-                wy = torch.ones_like(y)/nY
-                
-            # Single list of 0's and 1's corresponding to x's and y's
-            is_y = torch.cat([torch.zeros_like(x), torch.ones_like(y)])
-            eta = torch.cat([x, y])
-            idx_sort = torch.argsort(eta) # returns indices of eta that would result in it being sorted
-            sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order
-            sorted_eta = eta[idx_sort] # sort eta
-
-            # Calculate \hat{F}_1(X) and \hat{F}_1(Y) for all eta
-            F1x = torch.cumsum(1-sorted_is_y,0) * wx # DG: fixed nX
-
-            F1y = torch.cumsum(sorted_is_y,0) * wy # DG: fixed nY
-            # Calculate eta_i - eta_{i-1}
-            h = sorted_eta - torch.roll(sorted_eta,1) #torch.roll is circular shift rigt one place
-
-            F2x_incre = h*torch.roll(F1x,1) # (eta_i - eta_{i-1})*F_1(X; eta_{i-1}); roll shifts right by one place to align F_1 and h
-            F2y_incre = h*torch.roll(F1y,1) # (eta_i - eta_{i-1})*F_1(Y; eta_{i-1})
-            F2x_incre = F2x_incre.clone()
-            F2x_incre[0] = 0 # zero out the 1st index in-place
-            F2y_incre = F2y_incre.clone()
-            F2y_incre[0] = 0
-
-            # Calculate F2x for all etas
-            F2x = torch.cumsum(F2x_incre,0)
-            F2y = torch.cumsum(F2y_incre,0)
-
-            """
-            assuming that x_0 < x_1 < ... < x_n is sorted, for any x_i the corresponding F2x entry 
-            before the gradient correction line is computed as F_2(x_i) = \frac{1}{n} \sum_{j=0}^{i-1} (x_i - x_j). 
-            (Practically, the division by 1/n is omitted.)
-            After this line we cancel out the gradient of x_i, and essentially convert it to 
-            F_2(stop_grad(x_i)) = \frac{1}{n} \sum_{j=0}^{i-1} (stop_grad(x_i) - x_j). 
-            The reason is that x_i is to be picked up by an argmax/softmax operator mu, 
-            and per Danskin's theorem it should be detached from gradient computation.
-            softmax is a smooth approximator of argmax
-            """
-            # correct gradient computation
-            F2x = F2x + (1-sorted_is_y)*F1x*(sorted_eta.detach()-sorted_eta)
-            F2y = F2y.detach()
-
-            eps = torch.finfo(x.dtype).eps
-
-            tau = (torch.max(F2x - F2y) - torch.min(F2x - F2y))*rel_tau
-            mu = torch.exp(((F2x - F2y) - torch.max(F2x - F2y))/tau)
-            mu = mu/(torch.sum(mu)+eps)
-            mu = mu.detach()
-
-            """
-            Calculates the utility in lines 6,7 or returns sum(F2x-F2y)*mu
-            which applies when sampling of x_i is independent of theta.
-            Note that eventhough we search for the worst input distribution dependent on theta,
-            we do not sample from the input distribution - only the weights are adjusted, so
-            this trick still applies.
-            """
-            if get_utility:
-                u1 = torch.cumsum(mu[::-1])[::-1]
-                u2_incre = (torch.roll(sorted_eta,-1) - sorted_eta)*torch.roll(u1,-1)
-                u2_incre[0] = 0
-                u2 = torch.cumsum(u2_incre[::-1])[::-1]
-                ux = u2[torch.argsort(idx_sort)[:nX]]
-                return ux
-            else:
-                # Create a loss function (of theta) in such a way that it can be differentiated to obtain the gradients
-                # w.r.t. theta to improve theta. This is done by using Dankin's theorem.
-                loss = torch.sum((F2x - F2y)*mu)
-                return loss    
-
-        def xsd_2nd_cdf(F1x, F2x, seta_x, F1y, F2y, seta_y, rel_tau=0.3, get_utility=False):
-            """Second-order stochastic dominance loss. Implements algorithm 2
-
-            Args:
-                x, y: F1k, F2k, sorted eta (correspondig to Fk) from two distributions, which we want to maximize.
+                x, y: F1, sorted eta (correspondig to Fk) from two distributions, which we want to maximize.
                       x - is the new samples, y - is the reference
                       x - X_{\theta_{t,\bar{t}}, y - X_{\theta_t}
                 rel_tau: Softmax temperature control
@@ -2759,18 +2670,28 @@ class GLSD(ERM):
             is_y = torch.cat([torch.zeros_like(seta_x), torch.ones_like(seta_y)])
             eta = torch.cat([seta_x, seta_y])
             F1xy = torch.cat([F1x, F1y])
-            F2xy = torch.cat([F2x, F2y])
             idx_sort = torch.argsort(eta) # returns indices of eta that would result in it being sorted
             sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order
             sorted_eta = eta[idx_sort] # sort eta
             sorted_F1xy = F1xy[idx_sort] # sort F1xy
-            sorted_F2xy = F2xy[idx_sort] # sort F2xy
             
             F1x = fill_list((1-sorted_is_y)*sorted_F1xy)
-            F2x = fill_list((1-sorted_is_y)*sorted_F2xy)
             F1y = fill_list(sorted_is_y*sorted_F1xy)
-            F2y = fill_list(sorted_is_y*sorted_F2xy)
-                       
+            
+            # Calculate eta_i - eta_{i-1}
+            h = sorted_eta - torch.roll(sorted_eta,1) #torch.roll is circular shift rigt one place
+
+            F2x_incre = h*torch.roll(F1x,1) # (eta_i - eta_{i-1})*F_1(X; eta_{i-1}); roll shifts right by one place to align F_1 and h
+            F2y_incre = h*torch.roll(F1y,1) # (eta_i - eta_{i-1})*F_1(Y; eta_{i-1})
+            F2x_incre = F2x_incre.clone()
+            F2x_incre[0] = 0 # zero out the 1st index in-place
+            F2y_incre = F2y_incre.clone()
+            F2y_incre[0] = 0
+
+            # Calculate F2x for all etas
+            F2x = torch.cumsum(F2x_incre,0)
+            F2y = torch.cumsum(F2y_incre,0)
+
             """
             assuming that x_0 < x_1 < ... < x_n is sorted, for any x_i the corresponding F2x entry 
             before the gradient correction line is computed as F_2(x_i) = \frac{1}{n} \sum_{j=0}^{i-1} (x_i - x_j). 
@@ -2829,7 +2750,7 @@ class GLSD(ERM):
             losses.append(nll) # losses depend on network
         losses = torch.stack(losses) # env x b, Concatenates a sequence of tensors along a new dimension.
 
-        worst_env, F1, F2, sorted_eta = dominating_2nd_cdf(-losses) # F1, F2, sorted_eta depend on network
+        worst_env, F1, sorted_eta = dominating_2nd_cdf(-losses) # F1, sorted_eta depend on network
         update_worst_env_every_steps = self.hparams['update_worst_env_every_steps']
         if self.update_count.item() % update_worst_env_every_steps != 0:
             worst_env = self.worst_env
@@ -2842,20 +2763,18 @@ class GLSD(ERM):
         lambdas = lambdas.detach().clone()
 
         F1 = (F1 * lambdas.unsqueeze(1)).sum(0)
-        F2 = (F2 * lambdas.unsqueeze(1)).sum(0)   
         
         if len(self.buffer) == 0:
             device = F1.device  # or sorted_eta.device
             data = {
                 "F1": torch.rand_like(F1, device=device),
-                "F2": torch.rand_like(F2, device=device),
                 "sorted_eta": sorted_eta.detach().to(device)
             }                       
             self.buffer.extend(data)
         
         ref = self.buffer.sample()
         
-        loss = xsd_2nd_cdf(F1, F2, sorted_eta, ref["F1"], ref["F2"], ref["sorted_eta"])
+        loss = xsd_2nd_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
 
         self.optimizer.zero_grad()
         loss.backward(retain_graph=True)
@@ -2863,7 +2782,6 @@ class GLSD(ERM):
 
         data = {
             "F1": F1.detach(),
-            "F2": F2.detach(),
             "sorted_eta": sorted_eta.detach(),
         }
         self.buffer.extend(data)
