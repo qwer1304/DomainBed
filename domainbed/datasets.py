@@ -122,10 +122,10 @@ class MultipleEnvironmentMNIST(MultipleDomainDataset):
 
 class ColoredMNIST(MultipleEnvironmentMNIST):
     CHECKPOINT_FREQ = 1
-    ENVIRONMENTS = ['+90%', '+80%', '-90%']
+    ENVIRONMENTS = ['+90%', '+85%', '+80%', '+75%', '-90%']
 
     def __init__(self, root, test_envs, hparams):
-        super(ColoredMNIST, self).__init__(root, [0.1, 0.2, 0.9],
+        super(ColoredMNIST, self).__init__(root, [0.1, 0.15, 0.2, 0.25, 0.9],
                                          self.color_dataset, (2, 28, 28,), 2)
 
         self.input_shape = (2, 28, 28,)
