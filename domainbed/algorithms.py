@@ -2639,7 +2639,7 @@ class GLSD(ERM):
             some_less = torch.logical_or((diffs[:,:,1:] < 0).any(dim=2), torch.eye(n,dtype=torch.bool,device=x.device)) 
 
             # Find i such that T[i] <= T[j] for all j != i and some T[i,k] < T[j,k]
-            satisfying_i = torch.where(torch.and(all_less_or_equal.all(dim=1),some_less.all(dim=1)))[0]
+            satisfying_i = torch.where(torch.logical_and(all_less_or_equal.all(dim=1),some_less.all(dim=1)))[0]
             if satisfying_i.nelement() == 0: 
                 satisfying_i = torch.argmax(torch.sum((diffs[:,:,1:] < 0).to(float),(1,2)))
                 #logging.warning("No dominating environment! Choosing: %d", satisfying_i.item())
