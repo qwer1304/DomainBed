@@ -2623,7 +2623,7 @@ class GLSD(ERM):
             Second-order dominating cdf.
                 x: n x samples of n distributions, which we want to maximize.
             Returns:
-                The index of dominating cdf
+                The index of dominating cdf (negative means it was found heuristically)
                 Per environment F1
                 sorted_eta eta for which Fk were computed 
             """    
@@ -2642,9 +2642,10 @@ class GLSD(ERM):
             # Find i such that T[i] <= T[j] for all j != i and some T[i,k] < T[j,k]
             satisfying_i = torch.where(torch.logical_and(all_less_or_equal.all(dim=1),some_less.all(dim=1)))[0]
             if satisfying_i.nelement() == 0: 
-                satisfying_i = torch.argmax(torch.sum((diffs[:,:,1:] < 0).to(float),(1,2)))
+                satisfying_i = -torch.argmax(torch.sum((diffs[:,:,1:] < 0).to(float),(1,2)))
                 #logging.warning("No dominating environment! Choosing: %d", satisfying_i.item())
                 #print(diffs)
+                
             #else:
                 #logging.warning("Dominating environment: %d", satisfying_i.item())
                        
@@ -2655,7 +2656,7 @@ class GLSD(ERM):
             Second-order dominated cdf.
                 x: n x samples of n distributions, which we want to maximize.
             Returns:
-                The index of dominated cdf
+                The index of dominated cdf (negative means it was found heuristically)
                 Per environment F1
                 sorted_eta eta for which Fk were computed 
             """    
@@ -2674,7 +2675,7 @@ class GLSD(ERM):
             # Find i such that T[i] >= T[j] for all j != i and some T[i,k] > T[j,k]
             satisfying_i = torch.where(torch.logical_and(all_greater_or_equal.all(dim=1),some_greater.all(dim=1)))[0]
             if satisfying_i.nelement() == 0: 
-                satisfying_i = torch.argmax(torch.sum((diffs[:,:,1:] > 0).to(float),(1,2)))
+                satisfying_i = -torch.argmax(torch.sum((diffs[:,:,1:] > 0).to(float),(1,2)))
                 #logging.warning("No dominated environment! Choosing: %d", satisfying_i.item())
                 #print(diffs)
             #else:
@@ -2806,7 +2807,8 @@ class GLSD(ERM):
             min_theta max_lambda E[-u] = min_theta max_lambda -E[u] = min_theta min_lambda E[u] 
         This means we're looking for a dominated environment (one with smallest u)
         """
-        worst_env, F1, sorted_eta = dominated_2nd_cdf(-losses) # F1, sorted_eta depend on network
+        xworst_env, F1, sorted_eta = dominated_2nd_cdf(-losses) # F1, sorted_eta depend on network
+        worst_env = torch.abs(xworst_env)
         update_worst_env_every_steps = self.hparams['update_worst_env_every_steps']
         if self.update_count.item() % update_worst_env_every_steps != 0:
             worst_env = self.worst_env
@@ -2843,6 +2845,6 @@ class GLSD(ERM):
         self.buffer.extend(data)
         self.update_count += 1
 
-        return {'loss': loss.item(), 'nll': nll.mean().item(), "worst_e": worst_env.item(), }               
+        return {'loss': loss.item(), 'nll': nll.mean().item(), "worst_e": xworst_env.item(), }               
 
 
