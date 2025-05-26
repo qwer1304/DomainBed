@@ -2572,14 +2572,14 @@ class GLSD(ERM):
         self.register_buffer('update_count', torch.tensor([0]))
         self.register_buffer('pi', torch.tensor([1]+[0]*(num_domains-1)))
 
-        
+        """
         self.optimizer = torch.optim.SGD(
             self.network.parameters(),
             lr=0.1,
             momentum=0.9,
             weight_decay=self.hparams['weight_decay']
         )
-        
+        """
 
     def update(self, minibatches, unlabeled=None):
     
