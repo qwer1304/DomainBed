@@ -2793,7 +2793,7 @@ class GLSD(ERM):
             F1y = fill_list(sorted_is_y*sorted_F1xy)
             
             eps = torch.finfo(x.dtype).eps
-            eta_values = sorted_eta + eps
+            eta_values = sorted_eta + eps # [2b,]
             eta_values = eta_values.detach()
 
             tau = (torch.max(F1x - F1y) - torch.min(F1x - F1y))*rel_tau
@@ -2801,14 +2801,21 @@ class GLSD(ERM):
             mu = mu/(torch.sum(mu)+eps)
             mu = mu.detach()
 
-            eta = eta_values.unsqueeze(1)
+            eta = eta_values.unsqueeze(1) # [2b,1]
 
             # Previous code (Dai 2023) suggests relu
             if get_utility:
                 ux = torch.sum(nn.ReLU(eta - (x.unsqueeze(0)))*(mu.unsqueeze(1)), 0)
                 return ux
             else:
-                ex = torch.mean(nn.ReLU(eta - (x.unsqueeze(0))), dim=1)
+                #                                 [2b,b]
+                #                       [2b,1]           [1,b]
+                xx = x.unsqueeze(0)
+                print('size eta:',eta.size(),'size x:',x.size())
+                yy = eta - xx
+                print('size yy:',yy.size())
+                
+                ex = torch.mean(nn.ReLU(yy), dim=1)
                 loss = torch.sum(ex*mu)
                 return loss
 
