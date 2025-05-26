@@ -2781,6 +2781,7 @@ class GLSD(ERM):
             nX, nY = len(x), len(y)
             # Single list of 0's and 1's corresponding to x's and y's
             is_y = torch.cat([torch.zeros_like(seta_x), torch.ones_like(seta_y)])
+                       
             eta = torch.cat([seta_x, seta_y])
             F1xy = torch.cat([F1x, F1y])
             idx_sort = torch.argsort(eta) # returns indices of eta that would result in it being sorted
@@ -2792,7 +2793,7 @@ class GLSD(ERM):
             F1y = fill_list(sorted_is_y*sorted_F1xy)
             
             eps = torch.finfo(x.dtype).eps
-            eta_values = sorted_values + eps
+            eta_values = sorted_eta + eps
             eta_values = eta_values.detach()
 
             tau = (torch.max(F1x - F1y) - torch.min(F1x - F1y))*rel_tau
