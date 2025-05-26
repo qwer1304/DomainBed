@@ -2697,9 +2697,7 @@ class GLSD(ERM):
             diffs = torch.clamp(diffs, min=0) # leave only etas where i is dominated
             scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
             # Softmax over dominated scores to get positive weights sum to 1
-            pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0
-            print(pi)
-                       
+            pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0                     
             return pi, F1, sorted_eta
 
         def dominated_2nd_cdf(x, tau=1.0):
@@ -2740,9 +2738,7 @@ class GLSD(ERM):
             diffs = torch.clamp(diffs, min=0) # leave only etas where i is dominated
             scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
             # Softmax over dominated scores to get positive weights sum to 1
-            pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0
-            print(pi)
-                       
+            pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0                      
             return pi, F1, sorted_eta
 
         def fill_list(x):
@@ -2792,9 +2788,9 @@ class GLSD(ERM):
             F1x = fill_list((1-sorted_is_y)*sorted_F1xy)
             F1y = fill_list(sorted_is_y*sorted_F1xy)
             
-            eps = torch.finfo(x.dtype).eps
+            eps = torch.finfo(F1x.dtype).eps
             eta_values = sorted_eta + eps # [2b,]
-            eta_values = eta_values.detach()
+            eta_values = eta_values.detach() # why does he need that in jax?
 
             tau = (torch.max(F1x - F1y) - torch.min(F1x - F1y))*rel_tau
             mu = torch.exp(((F1x - F1y) - torch.max(F1x - F1y))/tau)
@@ -2805,10 +2801,12 @@ class GLSD(ERM):
 
             # Previous code (Dai 2023) suggests relu
             if get_utility:
-                ux = torch.sum(F.relu(eta - (F1x.unsqueeze(0)))*(mu.unsqueeze(1)), dim=0)
+                ux = torch.sum(F.softplus(eta - (F1x.unsqueeze(0)), beta=10)*(mu.unsqueeze(1)), dim=0)
+                #ux = torch.sum(F.relu(eta - (F1x.unsqueeze(0)))*(mu.unsqueeze(1)), dim=0)
                 return ux
             else:
-                ex = torch.mean(F.relu(eta - F1x.unsqueeze(0)), dim=1)
+                ex = torch.mean(F.softplus(eta - F1x.unsqueeze(0), beta=10), dim=1)
+                #ex = torch.mean(F.relu(eta - F1x.unsqueeze(0)), dim=1)
                 loss = torch.sum(ex*mu)
                 return loss
 
