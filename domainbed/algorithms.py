@@ -2608,7 +2608,7 @@ class GLSD(ERM):
             sigmoid_matrix = torch.sigmoid((sorted_eta_all - sorted_x_i) / tau)  # (n, nb, b)
 
             # Sum over b (within env), average to get soft-CDF
-            F1_soft = sigmoid_matrix.mean(dim=2)  # shape (n, nb)
+            F1_soft = sigmoid_matrix.sum(dim=2)/b  # shape (n, nb)
 
             """
             is_y = torch.ones_like(x, device=device)
@@ -2693,8 +2693,6 @@ class GLSD(ERM):
             n,b = x.size()
 
             sorted_eta, F1, _ = calculate_Fks(x)
-            print("x.requires_grad:", x.requires_grad)
-            print("F1.requires_grad:", F1.requires_grad)
            
             diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, b]
             
@@ -2807,15 +2805,15 @@ class GLSD(ERM):
             sorted_eta = eta[idx_sort] # sort eta
             sorted_F1xy = F1xy[idx_sort] # sort F1xy
             
-            F1xf = fill_list((1-sorted_is_y)*sorted_F1xy)
-            F1yf = fill_list(sorted_is_y*sorted_F1xy)
+            F1x = fill_list((1-sorted_is_y)*sorted_F1xy)
+            F1y = fill_list(sorted_is_y*sorted_F1xy)
             
             eps = torch.finfo(F1xf.dtype).eps
             eta_values = sorted_eta + eps # [2b,]
             eta_values = eta_values.detach() # why does he need that in jax?
 
-            tau = (torch.max(F1xf - F1yf) - torch.min(F1xf - F1yf))*rel_tau
-            mu = torch.exp(((F1xf - F1yf) - torch.max(F1xf - F1yf))/tau)
+            tau = (torch.max(F1x - F1y) - torch.min(F1x - F1y))*rel_tau
+            mu = torch.exp(((F1x - F1y) - torch.max(F1x - F1y))/tau)
             mu = mu/(torch.sum(mu)+eps)
             mu = mu.detach()
 
@@ -2823,19 +2821,13 @@ class GLSD(ERM):
 
             # Previous code (Dai 2023) suggests relu
             if get_utility:
-                ux = torch.sum(F.softplus(eta - (F1xf.unsqueeze(0)), beta=10)*(mu.unsqueeze(1)), dim=0)
-                #ux = torch.sum(F.relu(eta - (F1xf.unsqueeze(0)))*(mu.unsqueeze(1)), dim=0)
+                ux = torch.sum(F.softplus(eta - (F1x.unsqueeze(0)), beta=10)*(mu.unsqueeze(1)), dim=0)
+                #ux = torch.sum(F.relu(eta - (F1x.unsqueeze(0)))*(mu.unsqueeze(1)), dim=0)
                 return ux
             else:
-                ex = torch.mean(F.softplus(eta - F1xf.unsqueeze(0), beta=10), dim=1)
-                #ex = torch.mean(F.relu(eta - F1xf.unsqueeze(0)), dim=1)
+                ex = torch.mean(F.softplus(eta - F1x.unsqueeze(0), beta=10), dim=1)
+                #ex = torch.mean(F.relu(eta - F1x.unsqueeze(0)), dim=1)
                 loss = torch.sum(ex*mu)
-                print("eta.requires_grad:", eta.requires_grad)
-                print("F1x.requires_grad:", F1x.requires_grad)
-                print("F1xf.requires_grad:", F1xf.requires_grad)
-                print("ex.requires_grad:", ex.requires_grad)
-                print("loss.requires_grad:", loss.requires_grad)
-                print("loss.grad_fn:", loss.grad_fn)
                 return loss
 
         def xsd_2nd_cdf(F1x, seta_x, F1y, seta_y, rel_tau=0.3, get_utility=False):
@@ -2926,6 +2918,7 @@ class GLSD(ERM):
         penalty_weight = 1.0
         nll = 0.
         n = len(minibatches)
+        do_2nd_cdf = True
 
         all_x = torch.cat([x for x, y in minibatches])
         all_logits = self.network(all_x) # all_logits depend on network
@@ -2946,8 +2939,10 @@ class GLSD(ERM):
             min_theta max_lambda E[-u] = min_theta max_lambda -E[u] = min_theta min_lambda E[u] 
         This means we're looking for a dominated environment (one with smallest u)
         """
-        pi, F1, sorted_eta = dominated_1st_cdf(-losses) # F1, sorted_eta depend on network
-        #pi, F1, sorted_eta = dominated_2nd_cdf(-losses) # F1, sorted_eta depend on network
+        if do_2nd_cdf:
+            pi, F1, sorted_eta = dominated_2nd_cdf(-losses) # F1, sorted_eta depend on network
+        else:
+            pi, F1, sorted_eta = dominated_1st_cdf(-losses) # F1, sorted_eta depend on network
         update_worst_env_every_steps = self.hparams['update_worst_env_every_steps']
         if self.update_count.item() % update_worst_env_every_steps != 0:
             pi = self.pi
@@ -2972,8 +2967,10 @@ class GLSD(ERM):
         
         ref = self.buffer.sample()
         
-        loss = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
-        #loss = xsd_2nd_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
+        if do_2nd_cdf:
+            loss = xsd_2nd_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
+        else:
+            loss = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
 
         self.optimizer.zero_grad()
         loss.backward(retain_graph=True)
