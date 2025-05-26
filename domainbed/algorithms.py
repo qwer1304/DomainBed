@@ -2680,7 +2680,7 @@ class GLSD(ERM):
                 # Softmax over dominated scores to get positive weights sum to 1
                 pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0
             else:
-                pi = torch.zeros(n,dev=device)
+                pi = torch.zeros(n,device=device)
                 pi[satisfying_i] = 1
                        
             return pi, F1, sorted_eta
