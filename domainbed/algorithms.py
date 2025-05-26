@@ -2678,8 +2678,8 @@ class GLSD(ERM):
             
             # i is dominated by j if T[i,k] >= T[j,k] for all k and there's some m s.t. T[i,m] > T[j,m]
             # T[i] >= T[j] elementwise for all j != i
-            all_greater_or_equal = diffs[:,:,1:] >= 0).all(dim=2) 
-            some_greater = diffs[:,:,1:] > 0).any(dim=2) 
+            all_greater_or_equal = (diffs[:,:,1:] >= 0).all(dim=2) 
+            some_greater = (diffs[:,:,1:] > 0).any(dim=2) 
 
             # Find i such that T[i] >= T[j] for all j != i and some T[i,k] > T[j,k]
             satisfying_i = torch.where(torch.logical_and(all_greater_or_equal.all(dim=1),some_greater.all(dim=1)))[0]
