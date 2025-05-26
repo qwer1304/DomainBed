@@ -2787,6 +2787,6 @@ class GLSD(ERM):
         self.buffer.extend(data)
         self.update_count += 1
 
-        return {'loss': loss.item(), 'nll': nll.mean().item()}               
+        return {'loss': loss.item(), 'nll': nll.mean().item(), "worst_e": worst_env.item(), }               
 
 
