@@ -2808,7 +2808,7 @@ class GLSD(ERM):
             F1x = fill_list((1-sorted_is_y)*sorted_F1xy)
             F1y = fill_list(sorted_is_y*sorted_F1xy)
             
-            eps = torch.finfo(F1xf.dtype).eps
+            eps = torch.finfo(F1x.dtype).eps
             eta_values = sorted_eta + eps # [2b,]
             eta_values = eta_values.detach() # here eta are treated as constants not as coming from model
 
