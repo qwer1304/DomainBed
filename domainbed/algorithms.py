@@ -2808,7 +2808,7 @@ class GLSD(ERM):
                 ux = torch.sum(nn.ReLU(eta - (F1x.unsqueeze(0)))*(mu.unsqueeze(1)), 0)
                 return ux
             else:
-                ex = torch.mean(nn.ReLU(eta - F1x.unsqueeze(0)), dim=1)
+                ex = torch.mean(nn.ReLU(eta - F1x.unsqueeze(0)), 1)
                 loss = torch.sum(ex*mu)
                 return loss
 
