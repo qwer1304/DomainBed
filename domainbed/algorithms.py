@@ -2650,6 +2650,38 @@ class GLSD(ERM):
                        
             return satisfying_i, F1, sorted_eta
 
+        def dominated_2nd_cdf(x):
+            """
+            Second-order dominated cdf.
+                x: n x samples of n distributions, which we want to maximize.
+            Returns:
+                The index of dominated cdf
+                Per environment F1
+                sorted_eta eta for which Fk were computed 
+            """    
+            
+            n,b = x.size()
+            sorted_eta, F1, F2 = calculate_Fks(x)
+           
+            diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, b]
+
+            # i is dominated by j if T[i,k] >= T[j,k] for all k and there's some m s.t. T[i,m] > T[j,m]
+            # T[i] >= T[j] elementwise for all j != i
+            # disregard self-diff, disregard F2(0) since it's set to 0 for all environments
+            all_greater_or_equal = torch.logical_or((diffs[:,:,1:] >= 0).all(dim=2), torch.eye(n,dtype=torch.bool,device=x.device)) 
+            some_greater = torch.logical_or((diffs[:,:,1:] > 0).any(dim=2), torch.eye(n,dtype=torch.bool,device=x.device)) 
+
+            # Find i such that T[i] >= T[j] for all j != i and some T[i,k] > T[j,k]
+            satisfying_i = torch.where(torch.logical_and(all_greater_or_equal.all(dim=1),some_greater.all(dim=1)))[0]
+            if satisfying_i.nelement() == 0: 
+                satisfying_i = torch.argmax(torch.sum((diffs[:,:,1:] > 0).to(float),(1,2)))
+                #logging.warning("No dominated environment! Choosing: %d", satisfying_i.item())
+                #print(diffs)
+            #else:
+                #logging.warning("Dominated environment: %d", satisfying_i.item())
+                       
+            return satisfying_i, F1, sorted_eta
+
         def xsd_2nd_cdf(F1x, seta_x, F1y, seta_y, rel_tau=0.3, get_utility=False):
             """Second-order stochastic dominance loss. Implements algorithm 2
 
@@ -2768,7 +2800,13 @@ class GLSD(ERM):
             losses.append(nll) # losses depend on network
         losses = torch.stack(losses) # env x b, Concatenates a sequence of tensors along a new dimension.
 
-        worst_env, F1, sorted_eta = dominating_2nd_cdf(-losses) # F1, sorted_eta depend on network
+        """
+        In classification we want min_theta max_lambda E[loss].
+        For utility-view with u=-loss this gives: 
+            min_theta max_lambda E[-u] = min_theta max_lambda -E[u] = min_theta min_lambda E[u] 
+        This means we're looking for a dominated environment (one with smallest u)
+        """
+        worst_env, F1, sorted_eta = dominated_2nd_cdf(-losses) # F1, sorted_eta depend on network
         update_worst_env_every_steps = self.hparams['update_worst_env_every_steps']
         if self.update_count.item() % update_worst_env_every_steps != 0:
             worst_env = self.worst_env
