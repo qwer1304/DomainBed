@@ -2808,6 +2808,11 @@ class GLSD(ERM):
                 ex = torch.mean(F.softplus(eta - F1x.unsqueeze(0), beta=10), dim=1)
                 #ex = torch.mean(F.relu(eta - F1x.unsqueeze(0)), dim=1)
                 loss = torch.sum(ex*mu)
+                print("eta.requires_grad:", eta.requires_grad)
+                print("F1x.requires_grad:", F1x.requires_grad)
+                print("ex.requires_grad:", ex.requires_grad)
+                print("loss.requires_grad:", loss.requires_grad)
+                print("loss.grad_fn:", loss.grad_fn)
                 return loss
 
         def xsd_2nd_cdf(F1x, seta_x, F1y, seta_y, rel_tau=0.3, get_utility=False):
