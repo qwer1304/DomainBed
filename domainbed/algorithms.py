@@ -2570,7 +2570,7 @@ class GLSD(ERM):
         self.buffer = rb
         self.hparams = hparams
         self.register_buffer('update_count', torch.tensor([0]))
-        self.register_buffer('worst_env', torch.tensor([0]))
+        self.register_buffer('pi', torch.tensor([1]+[0]*(num_domains-1)))
 
         """
         self.optimizer = torch.optim.SGD(
@@ -2580,7 +2580,6 @@ class GLSD(ERM):
             weight_decay=self.hparams['weight_decay']
         )
         """
-
 
     def update(self, minibatches, unlabeled=None):
     
@@ -2651,7 +2650,7 @@ class GLSD(ERM):
                        
             return satisfying_i, F1, sorted_eta
 
-        def dominated_2nd_cdf(x):
+        def dominated_2nd_cdf(x, tau=1.0):
             """
             Second-order dominated cdf.
                 x: n x samples of n distributions, which we want to maximize.
@@ -2661,27 +2660,30 @@ class GLSD(ERM):
                 sorted_eta eta for which Fk were computed 
             """    
             
+            device = x.device
             n,b = x.size()
             sorted_eta, F1, F2 = calculate_Fks(x)
            
             diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, b]
-
+            
             # i is dominated by j if T[i,k] >= T[j,k] for all k and there's some m s.t. T[i,m] > T[j,m]
             # T[i] >= T[j] elementwise for all j != i
             # disregard self-diff, disregard F2(0) since it's set to 0 for all environments
-            all_greater_or_equal = torch.logical_or((diffs[:,:,1:] >= 0).all(dim=2), torch.eye(n,dtype=torch.bool,device=x.device)) 
-            some_greater = torch.logical_or((diffs[:,:,1:] > 0).any(dim=2), torch.eye(n,dtype=torch.bool,device=x.device)) 
+            all_greater_or_equal = torch.logical_or((diffs[:,:,1:] >= 0).all(dim=2), torch.eye(n,dtype=torch.bool,device=device)) 
+            some_greater = torch.logical_or((diffs[:,:,1:] > 0).any(dim=2), torch.eye(n,dtype=torch.bool,device=device)) 
 
             # Find i such that T[i] >= T[j] for all j != i and some T[i,k] > T[j,k]
             satisfying_i = torch.where(torch.logical_and(all_greater_or_equal.all(dim=1),some_greater.all(dim=1)))[0]
             if satisfying_i.nelement() == 0: 
-                satisfying_i = -torch.argmax(torch.sum((diffs[:,:,1:] > 0).to(float),(1,2)))
-                #logging.warning("No dominated environment! Choosing: %d", satisfying_i.item())
-                #print(diffs)
-            #else:
-                #logging.warning("Dominated environment: %d", satisfying_i.item())
+                diffs = torch.max(diffs, 0) # leave only etas where i is dominated
+                scores = torch.sum(diffs, dim=(1,2)) # some all scores over other environments
+                # Softmax over dominated scores to get positive weights sum to 1
+                pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0
+            else:
+                pi = torch.zeros(n,dev=device)
+                pi[satisfying_i] = 1
                        
-            return satisfying_i, F1, sorted_eta
+            return pi, F1, sorted_eta
 
         def xsd_2nd_cdf(F1x, seta_x, F1y, seta_y, rel_tau=0.3, get_utility=False):
             """Second-order stochastic dominance loss. Implements algorithm 2
@@ -2787,6 +2789,7 @@ class GLSD(ERM):
         # What are minibatches? Looks like they're minibatch per environment
         penalty_weight = 1.0
         nll = 0.
+        n = len(minibatches)
 
         all_x = torch.cat([x for x, y in minibatches])
         all_logits = self.network(all_x) # all_logits depend on network
@@ -2807,18 +2810,18 @@ class GLSD(ERM):
             min_theta max_lambda E[-u] = min_theta max_lambda -E[u] = min_theta min_lambda E[u] 
         This means we're looking for a dominated environment (one with smallest u)
         """
-        xworst_env, F1, sorted_eta = dominated_2nd_cdf(-losses) # F1, sorted_eta depend on network
-        worst_env = torch.abs(xworst_env)
+        pi, F1, sorted_eta = dominated_2nd_cdf(-losses) # F1, sorted_eta depend on network
         update_worst_env_every_steps = self.hparams['update_worst_env_every_steps']
         if self.update_count.item() % update_worst_env_every_steps != 0:
-            worst_env = self.worst_env
+            pi = self.pi
         else:
-            self.worst_env = worst_env
-        worst_env = worst_env.detach().clone()
+            self.pi = pi
+        pi = pi.detach()
         
-        lambdas = self.hparams['glsd_lambda'] * torch.ones(len(minibatches), device=losses.device)
-        lambdas[worst_env] = 1 - torch.sum(lambdas[1:])
-        lambdas = lambdas.detach().clone()
+        lambda_pos = 1 - (n - 1) * self.hparams['glsd_lambda']
+        lambdas = pi * lambda_pos + (1 - pi) * self.hparams['glsd_lambda']
+        
+        lambdas = lambdas.detach()
 
         F1 = (F1 * lambdas.unsqueeze(1)).sum(0)
         
@@ -2844,7 +2847,10 @@ class GLSD(ERM):
         }
         self.buffer.extend(data)
         self.update_count += 1
-
-        return {'loss': loss.item(), 'nll': nll.mean().item(), "worst_e": xworst_env.item(), }               
+        
+        pi_max, worst_e = torch.max(pi,dim=0)
+        if pi_max < 1:
+            worst_e = -worst_e
+        return {'loss': loss.item(), 'nll': nll.mean().item(), "worst_e": worst_env.item(), }               
 
 
