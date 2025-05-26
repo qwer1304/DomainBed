@@ -2617,7 +2617,7 @@ class GLSD(ERM):
 
             return sorted_eta, F1, F2
 
-        def dominating_2nd_cdf(x):
+        def dominating_2nd_cdf(x, tau=1.0):
             """
             Second-order dominating cdf.
                 x: n x samples of n distributions, which we want to maximize.
@@ -2627,28 +2627,80 @@ class GLSD(ERM):
                 sorted_eta eta for which Fk were computed 
             """    
             
+            device = x.device
             n,b = x.size()
             sorted_eta, F1, F2 = calculate_Fks(x)
            
             diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, b]
-
-            # i dominates j if T[i,k] <= T[j,k] for all k and there's some m s.t. T[i,m] < T[j,m]
+            
+            # i is dominating j if T[i,k] <= T[j,k] for all k and there's some m s.t. T[i,m] < T[j,m]
             # T[i] <= T[j] elementwise for all j != i
             # disregard self-diff, disregard F2(0) since it's set to 0 for all environments
-            all_less_or_equal = torch.logical_or((diffs[:,:,1:] <= 0).all(dim=2), torch.eye(n,dtype=torch.bool,device=x.device)) 
-            some_less = torch.logical_or((diffs[:,:,1:] < 0).any(dim=2), torch.eye(n,dtype=torch.bool,device=x.device)) 
+            all_less_or_equal = torch.logical_or((diffs[:,:,1:] <= 0).all(dim=2), torch.eye(n,dtype=torch.bool,device=device)) 
+            some_less = torch.logical_or((diffs[:,:,1:] < 0).any(dim=2), torch.eye(n,dtype=torch.bool,device=device)) 
 
             # Find i such that T[i] <= T[j] for all j != i and some T[i,k] < T[j,k]
             satisfying_i = torch.where(torch.logical_and(all_less_or_equal.all(dim=1),some_less.all(dim=1)))[0]
+            """
             if satisfying_i.nelement() == 0: 
-                satisfying_i = -torch.argmax(torch.sum((diffs[:,:,1:] < 0).to(float),(1,2)))
-                #logging.warning("No dominating environment! Choosing: %d", satisfying_i.item())
-                #print(diffs)
-                
-            #else:
-                #logging.warning("Dominating environment: %d", satisfying_i.item())
+                diffs = torch.clamp(diffs, max=0) # leave only etas where i is dominating
+                scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
+                # Softmax over dominating scores to get positive weights sum to 1
+                pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0
+            else:
+                pi = torch.zeros(n,device=device)
+                pi[satisfying_i] = 1
+            """
+            
+            diffs = torch.clamp(diffs, max=0) # leave only etas where i is dominating
+            scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
+            # Softmax over dominated scores to get positive weights sum to 1
+            pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0
+            print(pi)
                        
-            return satisfying_i, F1, sorted_eta
+            return pi, F1, sorted_eta
+
+        def dominated_1st_cdf(x, tau=1.0):
+            """
+            First-order dominated cdf.
+                x: n x samples of n distributions, which we want to maximize.
+            Returns:
+                The index of dominated cdf (negative means it was found heuristically)
+                Per environment F1
+                sorted_eta eta for which Fk were computed 
+            """    
+            
+            device = x.device
+            n,b = x.size()
+            sorted_eta, F1, _ = calculate_Fks(x)
+           
+            diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, b]
+            
+            # i is dominated by j if T[i,k] >= T[j,k] for all k and there's some m s.t. T[i,m] > T[j,m]
+            # T[i] >= T[j] elementwise for all j != i
+            all_greater_or_equal = diffs[:,:,1:] >= 0).all(dim=2) 
+            some_greater = diffs[:,:,1:] > 0).any(dim=2) 
+
+            # Find i such that T[i] >= T[j] for all j != i and some T[i,k] > T[j,k]
+            satisfying_i = torch.where(torch.logical_and(all_greater_or_equal.all(dim=1),some_greater.all(dim=1)))[0]
+            """
+            if satisfying_i.nelement() == 0: 
+                diffs = torch.clamp(diffs, min=0) # leave only etas where i is dominated
+                scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
+                # Softmax over dominated scores to get positive weights sum to 1
+                pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0
+            else:
+                pi = torch.zeros(n,device=device)
+                pi[satisfying_i] = 1
+            """
+            
+            diffs = torch.clamp(diffs, min=0) # leave only etas where i is dominated
+            scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
+            # Softmax over dominated scores to get positive weights sum to 1
+            pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0
+            print(pi)
+                       
+            return pi, F1, sorted_eta
 
         def dominated_2nd_cdf(x, tau=1.0):
             """
@@ -2693,6 +2745,72 @@ class GLSD(ERM):
                        
             return pi, F1, sorted_eta
 
+        def fill_list(x):
+            # Identify nonzero elements
+            nonzero_mask = x != 0
+            # Create cumulative sum of nonzero indicators
+            group_ids = torch.cumsum(nonzero_mask.to(torch.int), dim=0) - 1
+
+            # Identify which elements should be replaced (only after the first nonzero)
+            valid_mask = group_ids >= 0
+            # Store the nonzero values
+            nonzero_values = x[nonzero_mask]
+
+            # Prepare output by copying input
+            filled = x.clone()
+            # Replace only valid (non-leading) zeros
+            filled[valid_mask] = nonzero_values[group_ids[valid_mask]]
+            return filled
+
+        def xsd_1st_cdf(F1x, seta_x, F1y, seta_y, rel_tau=0.3, get_utility=False):
+            """First-order stochastic dominance loss.
+
+            Args:
+                x, y: F1, sorted eta (correspondig to Fk) from two distributions, which we want to maximize.
+                      x - is the new samples, y - is the reference
+                      x - X_{\theta_{t,\bar{t}}, y - X_{\theta_t}
+                rel_tau: Softmax temperature control
+                get_utility: Return array u(x) instead of a scalar loss
+                Shicong commented that when working with sampling dependent on theta (Algorithm 3),
+                you can pass get_utility=True to get ux values and plug it into the REINFORCE algorithm in place of cumulative rewards.
+
+            Returns:
+                Loss value to minimize, or the utility function u(x)
+            """    
+            
+            nX, nY = len(x), len(y)
+            # Single list of 0's and 1's corresponding to x's and y's
+            is_y = torch.cat([torch.zeros_like(seta_x), torch.ones_like(seta_y)])
+            eta = torch.cat([seta_x, seta_y])
+            F1xy = torch.cat([F1x, F1y])
+            idx_sort = torch.argsort(eta) # returns indices of eta that would result in it being sorted
+            sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order
+            sorted_eta = eta[idx_sort] # sort eta
+            sorted_F1xy = F1xy[idx_sort] # sort F1xy
+            
+            F1x = fill_list((1-sorted_is_y)*sorted_F1xy)
+            F1y = fill_list(sorted_is_y*sorted_F1xy)
+            
+            eps = torch.finfo(x.dtype).eps
+            eta_values = sorted_values + eps
+            eta_values = eta_values.detach()
+
+            tau = (torch.max(F1x - F1y) - torch.min(F1x - F1y))*rel_tau
+            mu = torch.exp(((F1x - F1y) - torch.max(F1x - F1y))/tau)
+            mu = mu/(torch.sum(mu)+eps)
+            mu = mu.detach()
+
+            eta = eta_values,unsueeze(1)
+
+            # Previous code (Dai 2023) suggests relu
+            if get_utility:
+                ux = torch.sum(torch.nn.relu(eta - (x.unsqueeze(0)))*(mu.unsqueeze(1)), 0)
+                return ux
+            else:
+                ex = torch.mean(torch.nn.relu(eta - (x.unsqueeze(0))), dim=1)
+                loss = torch.sum(ex*mu)
+                return loss
+
         def xsd_2nd_cdf(F1x, seta_x, F1y, seta_y, rel_tau=0.3, get_utility=False):
             """Second-order stochastic dominance loss. Implements algorithm 2
 
@@ -2709,23 +2827,6 @@ class GLSD(ERM):
                 Loss value to minimize, or the utility function u(x)
             """    
             
-            def fill_list(x):
-                # Identify nonzero elements
-                nonzero_mask = x != 0
-                # Create cumulative sum of nonzero indicators
-                group_ids = torch.cumsum(nonzero_mask.to(torch.int), dim=0) - 1
-
-                # Identify which elements should be replaced (only after the first nonzero)
-                valid_mask = group_ids >= 0
-                # Store the nonzero values
-                nonzero_values = x[nonzero_mask]
-
-                # Prepare output by copying input
-                filled = x.clone()
-                # Replace only valid (non-leading) zeros
-                filled[valid_mask] = nonzero_values[group_ids[valid_mask]]
-                return filled
-
             nX, nY = len(x), len(y)
             # Single list of 0's and 1's corresponding to x's and y's
             is_y = torch.cat([torch.zeros_like(seta_x), torch.ones_like(seta_y)])
@@ -2818,7 +2919,8 @@ class GLSD(ERM):
             min_theta max_lambda E[-u] = min_theta max_lambda -E[u] = min_theta min_lambda E[u] 
         This means we're looking for a dominated environment (one with smallest u)
         """
-        pi, F1, sorted_eta = dominated_2nd_cdf(-losses) # F1, sorted_eta depend on network
+        pi, F1, sorted_eta = dominated_1st_cdf(-losses) # F1, sorted_eta depend on network
+        #pi, F1, sorted_eta = dominated_2nd_cdf(-losses) # F1, sorted_eta depend on network
         update_worst_env_every_steps = self.hparams['update_worst_env_every_steps']
         if self.update_count.item() % update_worst_env_every_steps != 0:
             pi = self.pi
@@ -2843,7 +2945,8 @@ class GLSD(ERM):
         
         ref = self.buffer.sample()
         
-        loss = xsd_2nd_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
+        loss = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
+        #loss = xsd_2nd_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
 
         self.optimizer.zero_grad()
         loss.backward(retain_graph=True)
