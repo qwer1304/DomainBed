@@ -2628,6 +2628,7 @@ class GLSD(ERM):
                 sorted_eta eta for which Fk were computed 
             """    
             
+            n,b = x.size()
             sorted_eta, F1, F2 = calculate_Fks(x)
            
             diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, b]
