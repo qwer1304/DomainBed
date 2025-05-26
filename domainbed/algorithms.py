@@ -2810,7 +2810,7 @@ class GLSD(ERM):
             
             eps = torch.finfo(F1xf.dtype).eps
             eta_values = sorted_eta + eps # [2b,]
-            eta_values = eta_values.detach() # why does he need that in jax?
+            eta_values = eta_values.detach() # here eta are treated as constants not as coming from model
 
             tau = (torch.max(F1x - F1y) - torch.min(F1x - F1y))*rel_tau
             mu = torch.exp(((F1x - F1y) - torch.max(F1x - F1y))/tau)
@@ -2918,7 +2918,7 @@ class GLSD(ERM):
         penalty_weight = 1.0
         nll = 0.
         n = len(minibatches)
-        do_2nd_cdf = True
+        do_2nd_cdf = False
 
         all_x = torch.cat([x for x, y in minibatches])
         all_logits = self.network(all_x) # all_logits depend on network
