@@ -2821,12 +2821,12 @@ class GLSD(ERM):
 
             # Previous code (Dai 2023) suggests relu
             if get_utility:
-                ux = torch.sum(F.softplus(eta - (F1x.unsqueeze(0)), beta=10)*(mu.unsqueeze(1)), dim=0)
-                #ux = torch.sum(F.relu(eta - (F1x.unsqueeze(0)))*(mu.unsqueeze(1)), dim=0)
+                ux = torch.sum(F.softplus(eta - (seta_x.unsqueeze(0)), beta=10)*(mu.unsqueeze(1)), dim=0)
+                #ux = torch.sum(F.relu(eta - (seta_x.unsqueeze(0)))*(mu.unsqueeze(1)), dim=0)
                 return ux
             else:
-                ex = torch.mean(F.softplus(eta - F1x.unsqueeze(0), beta=10), dim=1)
-                #ex = torch.mean(F.relu(eta - F1x.unsqueeze(0)), dim=1)
+                ex = torch.mean(F.softplus(eta - seta_x.unsqueeze(0), beta=10), dim=1)
+                #ex = torch.mean(F.relu(eta - seta_x.unsqueeze(0)), dim=1)
                 loss = torch.sum(ex*mu)
                 return loss
 
