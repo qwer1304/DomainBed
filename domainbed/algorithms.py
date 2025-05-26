@@ -2597,7 +2597,7 @@ class GLSD(ERM):
             n,b = x.size()
 
             x_flat = x.view(n, b)                                  # (n, b)
-            sorted_x_flat = torch.sort(x_flat, dim=1)              # (n, b)
+            sorted_x_flat, _ = torch.sort(x_flat, dim=1)           # (n, b)
             # eta: shape (n*b,) = sorted losses (t_k)
             eta = x.reshape(-1)                                    # (nb,)
             sorted_eta, _ = torch.sort(eta)                        # (nb,)
