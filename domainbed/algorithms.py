@@ -2805,10 +2805,10 @@ class GLSD(ERM):
 
             # Previous code (Dai 2023) suggests relu
             if get_utility:
-                ux = torch.sum(torch.nn.relu(eta - (x.unsqueeze(0)))*(mu.unsqueeze(1)), 0)
+                ux = torch.sum(nn.ReLU(eta - (x.unsqueeze(0)))*(mu.unsqueeze(1)), 0)
                 return ux
             else:
-                ex = torch.mean(torch.nn.relu(eta - (x.unsqueeze(0))), dim=1)
+                ex = torch.mean(nn.ReLU(eta - (x.unsqueeze(0))), dim=1)
                 loss = torch.sum(ex*mu)
                 return loss
 
