@@ -2674,6 +2674,7 @@ class GLSD(ERM):
             n,b = x.size()
 
             sorted_eta, F1, _ = calculate_Fks(x)
+            print("x.requires_grad:", x.requires_grad)
             print("F1.requires_grad:", F1.requires_grad)
            
             diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, b]
