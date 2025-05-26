@@ -208,6 +208,8 @@ def _hparams(algorithm, dataset, random_seed):
     if dataset in SMALL_IMAGES:
         if algorithm == "ADRMX":
             _hparam('lr', 3e-3, lambda r: r.choice([5e-4, 1e-3, 2e-3, 3e-3]))
+        elseif algorithm == "GLSD":
+            _hparam('lr', 1e-4, lambda r: r.choice([5e-4, 1e-3, 2e-3, 3e-3]))
         else:
             _hparam('lr', 1e-3, lambda r: 10**r.uniform(-4.5, -2.5))
     else:
