@@ -2689,6 +2689,7 @@ class GLSD(ERM):
             scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
             # Softmax over dominated scores to get positive weights sum to 1
             pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0
+            print(pi)
                        
             return pi, F1, sorted_eta
 
