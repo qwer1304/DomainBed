@@ -2675,7 +2675,7 @@ class GLSD(ERM):
             # Find i such that T[i] >= T[j] for all j != i and some T[i,k] > T[j,k]
             satisfying_i = torch.where(torch.logical_and(all_greater_or_equal.all(dim=1),some_greater.all(dim=1)))[0]
             if satisfying_i.nelement() == 0: 
-                diffs = torch.max(diffs, 0) # leave only etas where i is dominated
+                diffs = torch.clamp(diffs, min=0) # leave only etas where i is dominated
                 scores = torch.sum(diffs, (1,2)) # some all scores over other environments
                 # Softmax over dominated scores to get positive weights sum to 1
                 pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0
