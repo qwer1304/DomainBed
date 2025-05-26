@@ -2801,7 +2801,7 @@ class GLSD(ERM):
             mu = mu/(torch.sum(mu)+eps)
             mu = mu.detach()
 
-            eta = eta_values,unsqueeze(1)
+            eta = eta_values.unsqueeze(1)
 
             # Previous code (Dai 2023) suggests relu
             if get_utility:
