@@ -2584,39 +2584,39 @@ class GLSD(ERM):
 
     def update(self, minibatches, unlabeled=None):
     
-            def calculate_Fks(x):
-                """
-                Calculate F1, F2, and etas for x.
-                    x: n x samples of n distributions, which we want to maximize.
-                Returns:
-                    Per environment F1
-                    Per environment F2
-                    sorted_eta eta for which Fk were computed 
-                """    
-                device = x.device
-                n,b = x.size()
-                is_y = torch.ones_like(x, device=device)
-                is_y = is_y * torch.arange(1,n+1,device=device).unsqueeze(1)
-                is_y = is_y.reshape(-1) # n*samples
-                eta = x.reshape(-1)
-                idx_sort = torch.argsort(eta) # returns indices of eta that would result in it being sorted
-                sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order
-                sorted_eta = eta[idx_sort] # sort eta
-                # Calculate \hat{F}_1(X) for all eta
-                F1 = torch.zeros(n,n*b,device=device) # n x n*b
-                for i in range(0,n):
-                    mask = (sorted_is_y == i+1).to(float)
-                    F1[i] = torch.cumsum(mask,0) / b
-    
-                # Calculate eta_i - eta_{i-1}
-                h = sorted_eta - torch.roll(sorted_eta,1) #torch.roll is circular shift rigt one place
-                F2_incre = h*torch.roll(F1,1,dims=1) # (eta_i - eta_{i-1})*F_1(X; eta_{i-1}); roll shifts right by one place to align F_1 and h
-                F2_incre = F2_incre.clone() # n x n*b
-                F2_incre[:,0] = 0 # zero out the 1st index in-place
-                # Calculate F2 for all etas
-                F2 = torch.cumsum(F2_incre,1)
-                
-                return sorted_eta, F1, F2
+        def calculate_Fks(x):
+            """
+            Calculate F1, F2, and etas for x.
+                x: n x samples of n distributions, which we want to maximize.
+            Returns:
+                Per environment F1
+                Per environment F2
+                sorted_eta eta for which Fk were computed 
+            """    
+            device = x.device
+            n,b = x.size()
+            is_y = torch.ones_like(x, device=device)
+            is_y = is_y * torch.arange(1,n+1,device=device).unsqueeze(1)
+            is_y = is_y.reshape(-1) # n*samples
+            eta = x.reshape(-1)
+            idx_sort = torch.argsort(eta) # returns indices of eta that would result in it being sorted
+            sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order
+            sorted_eta = eta[idx_sort] # sort eta
+            # Calculate \hat{F}_1(X) for all eta
+            F1 = torch.zeros(n,n*b,device=device) # n x n*b
+            for i in range(0,n):
+                mask = (sorted_is_y == i+1).to(float)
+                F1[i] = torch.cumsum(mask,0) / b
+
+            # Calculate eta_i - eta_{i-1}
+            h = sorted_eta - torch.roll(sorted_eta,1) #torch.roll is circular shift rigt one place
+            F2_incre = h*torch.roll(F1,1,dims=1) # (eta_i - eta_{i-1})*F_1(X; eta_{i-1}); roll shifts right by one place to align F_1 and h
+            F2_incre = F2_incre.clone() # n x n*b
+            F2_incre[:,0] = 0 # zero out the 1st index in-place
+            # Calculate F2 for all etas
+            F2 = torch.cumsum(F2_incre,1)
+
+            return sorted_eta, F1, F2
 
         def dominating_2nd_cdf(x):
             """
