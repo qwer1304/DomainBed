@@ -2583,10 +2583,11 @@ class GLSD(ERM):
 
     def update(self, minibatches, unlabeled=None):
     
-        def calculate_Fks(x):
+        def calculate_Fks(x, tau=1e-2):
             """
             Calculate F1, F2, and etas for x.
                 x: n x samples of n distributions, which we want to maximize.
+                tau: temperature parameter for smoothness
             Returns:
                 Per environment F1
                 Per environment F2
@@ -2594,6 +2595,22 @@ class GLSD(ERM):
             """    
             device = x.device
             n,b = x.size()
+
+            x_flat = x.view(n, b)                                  # (n, b)
+            sorted_x_flat = torch.sort(x_flat, dim=1)              # (n, b)
+            # eta: shape (n*b,) = sorted losses (t_k)
+            eta = x.reshape(-1)                                    # (nb,)
+            sorted_eta = torch.sort(eta)                           # (nb,)
+            sorted_eta_all = sorted_eta.unsqueeze(0).unsqueeze(2)  # (1, nb, 1)
+            sorted_x_i = sorted_x_flat.unsqueeze(1)                # (n, 1, b)
+
+            # Compute sigmoid((t_k - x_ij)/tau) for all i, k, j
+            sigmoid_matrix = torch.sigmoid((sorted_eta_all - sorted_x_i) / tau)  # (n, nb, b)
+
+            # Sum over b (within env), average to get soft-CDF
+            F1_soft = sigmoid_matrix.mean(dim=2)  # shape (n, nb)
+
+            """
             is_y = torch.ones_like(x, device=device)
             is_y = is_y * torch.arange(1,n+1,device=device).unsqueeze(1)
             is_y = is_y.reshape(-1) # n*samples
@@ -2606,6 +2623,8 @@ class GLSD(ERM):
             for i in range(0,n):
                 mask = (sorted_is_y == i+1).to(float)
                 F1[i] = torch.cumsum(mask,0) / b
+            """
+            F1 = F1_soft
 
             # Calculate eta_i - eta_{i-1}
             h = sorted_eta - torch.roll(sorted_eta,1) #torch.roll is circular shift rigt one place
