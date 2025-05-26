@@ -2785,15 +2785,15 @@ class GLSD(ERM):
             sorted_eta = eta[idx_sort] # sort eta
             sorted_F1xy = F1xy[idx_sort] # sort F1xy
             
-            F1x = fill_list((1-sorted_is_y)*sorted_F1xy)
-            F1y = fill_list(sorted_is_y*sorted_F1xy)
+            F1xf = fill_list((1-sorted_is_y)*sorted_F1xy)
+            F1yf = fill_list(sorted_is_y*sorted_F1xy)
             
-            eps = torch.finfo(F1x.dtype).eps
+            eps = torch.finfo(F1xf.dtype).eps
             eta_values = sorted_eta + eps # [2b,]
             eta_values = eta_values.detach() # why does he need that in jax?
 
-            tau = (torch.max(F1x - F1y) - torch.min(F1x - F1y))*rel_tau
-            mu = torch.exp(((F1x - F1y) - torch.max(F1x - F1y))/tau)
+            tau = (torch.max(F1xf - F1yf) - torch.min(F1xf - F1yf))*rel_tau
+            mu = torch.exp(((F1xf - F1yf) - torch.max(F1xf - F1yf))/tau)
             mu = mu/(torch.sum(mu)+eps)
             mu = mu.detach()
 
@@ -2801,15 +2801,16 @@ class GLSD(ERM):
 
             # Previous code (Dai 2023) suggests relu
             if get_utility:
-                ux = torch.sum(F.softplus(eta - (F1x.unsqueeze(0)), beta=10)*(mu.unsqueeze(1)), dim=0)
-                #ux = torch.sum(F.relu(eta - (F1x.unsqueeze(0)))*(mu.unsqueeze(1)), dim=0)
+                ux = torch.sum(F.softplus(eta - (F1xf.unsqueeze(0)), beta=10)*(mu.unsqueeze(1)), dim=0)
+                #ux = torch.sum(F.relu(eta - (F1xf.unsqueeze(0)))*(mu.unsqueeze(1)), dim=0)
                 return ux
             else:
-                ex = torch.mean(F.softplus(eta - F1x.unsqueeze(0), beta=10), dim=1)
-                #ex = torch.mean(F.relu(eta - F1x.unsqueeze(0)), dim=1)
+                ex = torch.mean(F.softplus(eta - F1xf.unsqueeze(0), beta=10), dim=1)
+                #ex = torch.mean(F.relu(eta - F1xf.unsqueeze(0)), dim=1)
                 loss = torch.sum(ex*mu)
                 print("eta.requires_grad:", eta.requires_grad)
                 print("F1x.requires_grad:", F1x.requires_grad)
+                print("F1xf.requires_grad:", F1xf.requires_grad)
                 print("ex.requires_grad:", ex.requires_grad)
                 print("loss.requires_grad:", loss.requires_grad)
                 print("loss.grad_fn:", loss.grad_fn)
