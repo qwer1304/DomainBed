@@ -2948,7 +2948,7 @@ class GLSD(ERM):
         update_worst_env_every_steps = self.hparams['update_worst_env_every_steps']
         ministep = self.update_count.item() % update_worst_env_every_steps
         if ministep == 0:
-            self.pi_prev self.pi
+            self.pi_prev = self.pi
             self.pi = pi
         
         alpha_max = update_worst_env_every_steps / 2
