@@ -2571,6 +2571,7 @@ class GLSD(ERM):
         self.hparams = hparams
         self.register_buffer('update_count', torch.tensor([0]))
         self.register_buffer('pi', torch.tensor([1]+[0]*(num_domains-1)))
+        self.register_buffer('pi_prev', torch.tensor([0]*(num_domains-1)+[1]))
 
         """
         self.optimizer = torch.optim.SGD(
@@ -2943,11 +2944,17 @@ class GLSD(ERM):
             pi, F1, sorted_eta = dominated_2nd_cdf(-losses) # F1, sorted_eta depend on network
         else:
             pi, F1, sorted_eta = dominated_1st_cdf(-losses) # F1, sorted_eta depend on network
+
         update_worst_env_every_steps = self.hparams['update_worst_env_every_steps']
-        if self.update_count.item() % update_worst_env_every_steps != 0:
-            pi = self.pi
-        else:
+        ministep = self.update_count.item() % update_worst_env_every_steps
+        if ministep == 0:
+            self.pi_prev self.pi
             self.pi = pi
+        
+        alpha_max = update_worst_env_every_steps / 2
+        alpha = min(ministep/alpha_max,1)
+        pi = alpha*self.pi + (1-alpha)*self.pi_prev
+        
         pi = pi.detach()
         
         lambda_pos = 1 - (n - 1) * self.hparams['glsd_lambda']
