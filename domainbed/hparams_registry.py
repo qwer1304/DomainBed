@@ -187,8 +187,9 @@ def _hparams(algorithm, dataset, random_seed):
             _hparam('urm_discriminator_lr', 5e-5, lambda r: 10**r.uniform(-6, -4.5))
             
     elif algorithm == "GLSD":
-        _hparam('glsd_lambda', -1e0, lambda r: -1e0)#-10**r.uniform(-1, 5)) # FIX ME!
-        _hparam('update_worst_env_every_steps', 10, lambda r: 4)#-10**r.uniform(-1, 5))
+        _hparam('glsd_gamma', 2, lambda r: r.choice([1,2,3]))
+        _hparam('update_worst_env_every_steps', 10, lambda r: 10)#r.choice([1,4,8,10]))
+        _hparam('alpha_div', 2, lambda r: r.choice([1.5, 2, 3]))
 
     if algorithm == "ADRMX":
         _hparam('cnt_lambda', 1.0, lambda r: r.choice([1.0]))

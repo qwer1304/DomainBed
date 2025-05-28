@@ -60,7 +60,8 @@ ALGORITHMS = [
     'RDM',
     'ADRMX',
     'URM',
-    'GLSD',
+    'GLSD_SSD',
+    'GLSD_FSD',
 ]
 
 def get_algorithm_class(algorithm_name):
@@ -2555,9 +2556,19 @@ class ADRMX(Algorithm):
     def predict(self, x):
         return self.network(x)
         
+class GLSD_SSD(GLSD):
+    """GLSD_SSD algorithm """
+    def __init__(self, input_shape, num_classes, num_domains, hparams):
+        super(GLSD, self).__init__(True, input_shape, num_classes, num_domains,
+                                  hparams)
+class GLSD_FSD(GLSD):
+    """GLSD_FSD algorithm """
+    def __init__(self, input_shape, num_classes, num_domains, hparams):
+        super(GLSD, self).__init__(False, input_shape, num_classes, num_domains,
+                                  hparams)
 class GLSD(ERM):
     """GLSD algorithm """
-    def __init__(self, input_shape, num_classes, num_domains, hparams):
+    def __init__(self, SSD, input_shape, num_classes, num_domains, hparams):
         super(GLSD, self).__init__(input_shape, num_classes, num_domains,
                                   hparams)
         if torch.cuda.is_available():
@@ -2565,6 +2576,7 @@ class GLSD(ERM):
         else:
             device = "cpu"
 
+        self.SSD = SSD
         rb = ReplayBuffer(storage=LazyTensorStorage(5*num_domains*hparams['batch_size'], ndim=1, device=device), sampler=SamplerWithoutReplacement(), 
             batch_size=num_domains*hparams['batch_size'],)# dim_extend=1,)
         self.buffer = rb
@@ -2919,7 +2931,6 @@ class GLSD(ERM):
         penalty_weight = 1.0
         nll = 0.
         n = len(minibatches)
-        do_2nd_cdf = False
 
         all_x = torch.cat([x for x, y in minibatches])
         all_logits = self.network(all_x) # all_logits depend on network
@@ -2940,7 +2951,7 @@ class GLSD(ERM):
             min_theta max_lambda E[-u] = min_theta max_lambda -E[u] = min_theta min_lambda E[u] 
         This means we're looking for a dominated environment (one with smallest u)
         """
-        if do_2nd_cdf:
+        if self.SSD:
             pi, F1, sorted_eta = dominated_2nd_cdf(-losses) # F1, sorted_eta depend on network
         else:
             pi, F1, sorted_eta = dominated_1st_cdf(-losses) # F1, sorted_eta depend on network
@@ -2951,14 +2962,15 @@ class GLSD(ERM):
             self.pi_prev = self.pi
             self.pi = pi
         
-        alpha_max = update_worst_env_every_steps / 2
+        alpha_max = update_worst_env_every_steps / self.hparams['alpha_div']
         alpha = min(ministep/alpha_max,1)
         pi = alpha*self.pi + (1-alpha)*self.pi_prev
         
         pi = pi.detach()
         
-        lambda_pos = 1 - (n - 1) * self.hparams['glsd_lambda']
-        lambdas = pi * lambda_pos + (1 - pi) * self.hparams['glsd_lambda']
+        lambda = -self.hparams['glsd_gamma'] / np.sqrt(n)
+        lambda_pos = 1 - (n - 1) * lambda
+        lambdas = pi * lambda_pos + (1 - pi) * lambda
         
         lambdas = lambdas.detach()
 
@@ -2974,7 +2986,7 @@ class GLSD(ERM):
         
         ref = self.buffer.sample()
         
-        if do_2nd_cdf:
+        if self.SSD:
             loss = xsd_2nd_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
         else:
             loss = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
