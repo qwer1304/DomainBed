@@ -2968,9 +2968,9 @@ class GLSD(ERM):
         
         pi = pi.detach()
         
-        lambda = -self.hparams['glsd_gamma'] / np.sqrt(n)
-        lambda_pos = 1 - (n - 1) * lambda
-        lambdas = pi * lambda_pos + (1 - pi) * lambda
+        lambdax = -self.hparams['glsd_gamma'] / np.sqrt(n)
+        lambda_pos = 1 - (n - 1) * lambdax
+        lambdas = pi * lambda_pos + (1 - pi) * lambdax
         
         lambdas = lambdas.detach()
 
