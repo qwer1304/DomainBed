@@ -8,6 +8,8 @@ import random
 import sys
 import time
 import uuid
+import glob
+
 
 import numpy as np
 import PIL
@@ -22,6 +24,58 @@ from domainbed.lib import misc
 from domainbed.lib.fast_data_loader import InfiniteDataLoader, FastDataLoader
 
 if __name__ == "__main__":
+
+    def save_checkpoint(filename):
+        if args.skip_model_save:
+            return
+        if torch.cuda.is_available():
+            cuda_rng_state = torch.cuda.get_rng_state_all()
+        else:
+            cuda_rng_state = None
+
+        save_dict = {
+            "args": vars(args),
+            "model_input_shape": dataset.input_shape,
+            "model_num_classes": dataset.num_classes,
+            "model_num_domains": len(dataset) - len(args.test_envs),
+            "model_hparams": hparams,
+            "model_dict": algorithm.state_dict(),
+            "start_step": start_step,
+            "optimizer_dict": algorithm.optimizer.state_dict(),
+            "rng_state": torch.get_rng_state(),
+            "cuda_rng_state": cuda_rng_state,
+            "numpy_rng_state": np.random.get_state(),
+            "python_rng_state": random.getstate()
+        }
+        torch.save(save_dict, os.path.join(args.output_dir, filename))
+        
+    def load_checkpoint(filename):
+        save_dict = torch.load(filename, weights_only=False) # to allow loading optimizer and rng states
+        """
+        dataset.input_shape = save_dict['model_input_shape']
+        dataset.num_classes = save_dict['model_num_classes']
+        """
+        hparams = save_dict['model_hparams']
+        algorithm_dict = save_dict['model_dict']
+        start_step = save_dict['start_step']
+        optimizer_dict = save_dict['optimizer_dict']
+        # Restore RNG states
+        torch.set_rng_state(save_dict['rng_state'])
+        if torch.cuda.is_available():
+            torch.cuda.set_rng_state_all(save_dict['cuda_rng_state'])
+        np.random.set_state(save_dict['numpy_rng_state'])
+        random.setstate(save_dict['python_rng_state'])
+        
+        if False: # To make this work need to distinguish default values vs user passed ones
+            # Merge: command-line overrides checkpoint
+            cmd_args_dict = vars(args)
+            merged_args_dict = {**save_dict['args'], **{k: v for k, v in cmd_args_dict.items() if v is not None}}
+        else:
+            merged_args_dict = save_dict['args']
+        new_args = argparse.Namespace(**merged_args_dict)
+        
+        return new_args, hparams, algorithm_dict, start_step, optimizer_dict
+
     parser = argparse.ArgumentParser(description='Domain generalization')
     parser.add_argument('--data_dir', type=str)
     parser.add_argument('--dataset', type=str, default="RotatedMNIST")
@@ -48,12 +102,36 @@ if __name__ == "__main__":
         help="For domain adaptation, % of test to use unlabeled for training.")
     parser.add_argument('--skip_model_save', action='store_true')
     parser.add_argument('--save_model_every_checkpoint', action='store_true')
+    parser.add_argument('--load_from_checkpoint', type=str, nargs='?', default=None, const=True,    
+        help='filename of checkpoint with path or blank in whci case the latest checkpoint will be used.')
     args = parser.parse_args()
 
     # If we ever want to implement checkpointing, just persist these values
     # every once in a while, and then load them from disk here.
-    start_step = 0
-    algorithm_dict = None
+    if args.load_from_checkpoint is not None:
+        def latest_file(pattern):
+            files = glob.glob(pattern)
+            if not files:
+                return None
+            latest = max(files, key=os.path.getmtime)
+            return latest
+
+        if args.load_from_checkpoint is True:
+            filename = os.path.join(args.output_dir, 'model_step*.pkl')
+        else:
+            filename = args.load_from_checkpoint # filename + path provided
+        filename = latest_file(filename)
+        if filename is not None:
+            args, hparams, algorithm_dict, start_step, otimizer_dict = load_checkpoint(filename)
+        else:
+            raise ValueError("No checkpoint file.")
+            
+        from_checkpoint = True
+    else:
+        start_step = 0
+        algorithm_dict = None
+        optimizer_dict = None
+        from_checkpoint = False
 
     os.makedirs(args.output_dir, exist_ok=True)
     sys.stdout = misc.Tee(os.path.join(args.output_dir, 'out.txt'))
@@ -72,21 +150,23 @@ if __name__ == "__main__":
     for k, v in sorted(vars(args).items()):
         print('\t{}: {}'.format(k, v))
 
-    if args.hparams_seed == 0:
-        hparams = hparams_registry.default_hparams(args.algorithm, args.dataset)
-    else:
-        hparams = hparams_registry.random_hparams(args.algorithm, args.dataset,
-            misc.seed_hash(args.hparams_seed, args.trial_seed))
-    if args.hparams:
-        hparams.update(json.loads(args.hparams))
+    if not from_checkpoint:
+        if args.hparams_seed == 0:
+            hparams = hparams_registry.default_hparams(args.algorithm, args.dataset)
+        else:
+            hparams = hparams_registry.random_hparams(args.algorithm, args.dataset,
+                misc.seed_hash(args.hparams_seed, args.trial_seed))
+        if args.hparams:
+            hparams.update(json.loads(args.hparams))
 
     print('HParams:')
     for k, v in sorted(hparams.items()):
         print('\t{}: {}'.format(k, v))
 
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    if not from_checkpoint:
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
@@ -176,6 +256,7 @@ if __name__ == "__main__":
 
     if algorithm_dict is not None:
         algorithm.load_state_dict(algorithm_dict)
+        algorithm.optimizer.load_state_dict(algorithm_dict)
 
     algorithm.to(device)
 
@@ -187,20 +268,6 @@ if __name__ == "__main__":
 
     n_steps = args.steps or dataset.N_STEPS
     checkpoint_freq = args.checkpoint_freq or dataset.CHECKPOINT_FREQ
-
-    def save_checkpoint(filename):
-        if args.skip_model_save:
-            return
-        save_dict = {
-            "args": vars(args),
-            "model_input_shape": dataset.input_shape,
-            "model_num_classes": dataset.num_classes,
-            "model_num_domains": len(dataset) - len(args.test_envs),
-            "model_hparams": hparams,
-            "model_dict": algorithm.state_dict()
-        }
-        torch.save(save_dict, os.path.join(args.output_dir, filename))
-
 
     last_results_keys = None
     for step in range(start_step, n_steps):
