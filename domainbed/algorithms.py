@@ -3000,12 +3000,12 @@ class GLSD(ERM):
 class GLSD_SSD(GLSD):
     """GLSD_SSD algorithm """
     def __init__(self, input_shape, num_classes, num_domains, hparams):
-        super(GLSD, self).__init__(True, input_shape, num_classes, num_domains,
+        super(GLSD_SSD, self).__init__(True, input_shape, num_classes, num_domains,
                                   hparams)
 class GLSD_FSD(GLSD):
     """GLSD_FSD algorithm """
     def __init__(self, input_shape, num_classes, num_domains, hparams):
-        super(GLSD, self).__init__(False, input_shape, num_classes, num_domains,
+        super(GLSD_FSD, self).__init__(False, input_shape, num_classes, num_domains,
                                   hparams)
 
 
