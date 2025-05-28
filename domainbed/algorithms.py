@@ -2556,16 +2556,6 @@ class ADRMX(Algorithm):
     def predict(self, x):
         return self.network(x)
         
-class GLSD_SSD(GLSD):
-    """GLSD_SSD algorithm """
-    def __init__(self, input_shape, num_classes, num_domains, hparams):
-        super(GLSD, self).__init__(True, input_shape, num_classes, num_domains,
-                                  hparams)
-class GLSD_FSD(GLSD):
-    """GLSD_FSD algorithm """
-    def __init__(self, input_shape, num_classes, num_domains, hparams):
-        super(GLSD, self).__init__(False, input_shape, num_classes, num_domains,
-                                  hparams)
 class GLSD(ERM):
     """GLSD algorithm """
     def __init__(self, SSD, input_shape, num_classes, num_domains, hparams):
@@ -3006,5 +2996,16 @@ class GLSD(ERM):
         if pi_max < 1:
             worst_e = -worst_e
         return {'loss': loss.item(), 'nll': nll.mean().item(), "worst_e": worst_e.item(), }               
+
+class GLSD_SSD(GLSD):
+    """GLSD_SSD algorithm """
+    def __init__(self, input_shape, num_classes, num_domains, hparams):
+        super(GLSD, self).__init__(True, input_shape, num_classes, num_domains,
+                                  hparams)
+class GLSD_FSD(GLSD):
+    """GLSD_FSD algorithm """
+    def __init__(self, input_shape, num_classes, num_domains, hparams):
+        super(GLSD, self).__init__(False, input_shape, num_classes, num_domains,
+                                  hparams)
 
 
