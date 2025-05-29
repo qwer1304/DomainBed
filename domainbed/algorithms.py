@@ -2988,7 +2988,7 @@ class GLSD(ERM):
 
         if self.SSD:
             loss_ssd = xsd_2nd_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"], margin=margin)
-            if self.hparams['glsd_fsd_lambda']*loss_fsd > 0:
+            if self.hparams['glsd_fsd_lambda'] > 0:
                 loss_fsd = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
             else:
                 loss_fsd = 0
