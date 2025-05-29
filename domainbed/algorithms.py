@@ -3003,6 +3003,7 @@ class GLSD(ERM):
         pi_max, worst_e = torch.max(pi,dim=0)
         print('size pi:',pi.size(),'worst_e:',worst_e.item())
         if pi_max < 1:
+            print('size pi:',pi.size(),'worst_e:',worst_e.item(),(-worst_e).item())
             worst_e = -worst_e
         return {'loss': loss.item(), 'nll': nll.mean().item(), "worst_e": worst_e.item(), }               
 
