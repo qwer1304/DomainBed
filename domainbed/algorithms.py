@@ -3081,7 +3081,6 @@ class GLSD(ERM):
             loss_fsd = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
             loss_ssd = torch.tensor([0])
 
-
         normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd})
 
         # Combine them with weights
@@ -3103,7 +3102,7 @@ class GLSD(ERM):
         if pi_max < 1:
             worst_e_index = -worst_e_index
         # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
-        return {'loss': loss.item(), 'loss_FSD': loss_fsd.item(), 'loss_SSD': loss_ssd.item(), 'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }               
+        return {'loss': loss.item(), 'n_loss_FSD': normalized['fsd'].item(), 'n_loss_SSD': normalized['ssd'.item(), 'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }               
 
 class GLSD_SSD(GLSD):
     """GLSD_SSD algorithm """
