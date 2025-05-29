@@ -3004,7 +3004,8 @@ class GLSD(ERM):
         worst_e_index = worst_env.item()
         if pi_max < 1:
             worst_e_index = -worst_e_index
-        return {'loss': loss.item(), 'nll': nll.mean().item(), 'worst_env': 10*int(worst_e_index), }               
+        # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
+        return {'loss': loss.item(), 'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }               
 
 class GLSD_SSD(GLSD):
     """GLSD_SSD algorithm """
