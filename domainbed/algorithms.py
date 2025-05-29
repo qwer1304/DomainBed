@@ -3085,7 +3085,7 @@ class GLSD(ERM):
         normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd})
 
         # Combine them with weights
-        loss = loss_balancer.weighted_sum(normalized, weights={"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0})
+        loss = self.loss_balancer.weighted_sum(normalized, weights={"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0})
 
         self.optimizer.zero_grad()
         loss.backward(retain_graph=True)
