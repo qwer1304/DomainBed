@@ -2917,7 +2917,7 @@ class GLSD(ERM):
                 # Create a loss function (of theta) in such a way that it can be differentiated to obtain the gradients
                 # w.r.t. theta to improve theta. This is done by using Dankin's theorem.
                 # loss = delta*mu, i.e. delta[argmax(delta)]
-                loss = (delta*mu + margin).clamp(min=0).sum()
+                loss = (delta*mu + margin).clamp(min=0).mean()
                 return loss    
 
         # What are minibatches? Looks like they're minibatch per environment
@@ -3003,7 +3003,6 @@ class GLSD(ERM):
         pi_max, worst_env = torch.max(pi,dim=0)
         worst_e_index = worst_env.item()
         if pi_max < 1:
-            print('size pi:',pi.size(),'worst_e:',worst_e_index,-worst_e_index)
             worst_e_index = -worst_e_index
         return {'loss': loss.item(), 'nll': nll.mean().item(), "worst_env": worst_e_index, }               
 
