@@ -2987,9 +2987,12 @@ class GLSD(ERM):
         margin = initial_margin + (final_margin - initial_margin) * (self.update_count / total_steps)
 
         if self.SSD:
-            loss_fsd = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
             loss_ssd = xsd_2nd_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"], margin=margin)
-            loss = loss_fsd + 10*loss_ssd
+            if self.hparams['glsd_fsd_lambda']*loss_fsd > 0:
+                loss_fsd = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
+            else:
+                loss_fsd = 0
+            loss = self.hparams['glsd_fsd_lambda']*loss_fsd + loss_ssd
         else:
             loss = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
 
