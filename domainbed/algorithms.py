@@ -2919,7 +2919,7 @@ class GLSD(ERM):
                 # w.r.t. theta to improve theta. This is done by using Dankin's theorem.
                 # loss = delta*mu, i.e. delta[argmax(delta)]
                 loss = (delta*mu + margin).clamp(min=-1e-2).mean()
-                loss = delta*mu.sum()
+                loss = (delta*mu).sum()
                 return loss    
 
         # What are minibatches? Looks like they're minibatch per environment
