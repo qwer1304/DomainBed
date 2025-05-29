@@ -102,13 +102,17 @@ if __name__ == "__main__":
         help="For domain adaptation, % of test to use unlabeled for training.")
     parser.add_argument('--skip_model_save', action='store_true')
     parser.add_argument('--save_model_every_checkpoint', action='store_true')
-    parser.add_argument('--load_from_checkpoint', type=str, nargs='?', default=None, const=True,    
-        help='filename of checkpoint with path or blank in whci case the latest checkpoint will be used.')
+    parser.add_argument('--load_from_checkpoint', action='store_true',    
+        help='Resume from checkpoint. Provide extra info in checkpoint_... arguments, if needed.')
+    parser.add_argument('--checkpoint_file', type=str, default=None,   
+        help='Filename (including path) of the checkpoint. If not given output_dir is used with the latest checkpoint.')
+    parser.add_argument('--checkpoint_use_current_args', action='store_true',    
+        help='Use args from this command line instead from those in the checkpoint.')
     args = parser.parse_args()
 
     # If we ever want to implement checkpointing, just persist these values
     # every once in a while, and then load them from disk here.
-    if args.load_from_checkpoint is not None:
+    if args.load_from_checkpoint:
         def latest_file(pattern):
             files = glob.glob(pattern)
             if not files:
@@ -116,18 +120,23 @@ if __name__ == "__main__":
             latest = max(files, key=os.path.getmtime)
             return latest
 
-        if args.load_from_checkpoint is True:
+        if args.checkpoint_file is None:
             filename = os.path.join(args.output_dir, 'model_step*.pkl')
         else:
-            filename = args.load_from_checkpoint # filename + path provided
+            filename = args.checkpoint_file # filename + path provided
         filename = latest_file(filename)
         if filename is not None:
-            args, hparams, algorithm_dict, start_step, otimizer_dict = load_checkpoint(filename)
+            if args.checkpoint_use_current_args:
+                _, hparams, algorithm_dict, start_step, otimizer_dict = load_checkpoint(filename)
+            else:
+               args, hparams, algorithm_dict, start_step, otimizer_dict = load_checkpoint(filename)
         else:
             raise ValueError("No checkpoint file.")
             
         from_checkpoint = True
     else:
+        if (args.checkpoint_file is not None) or (args.checkpoint_use_current_args):
+            raise ValueError("Checkpoint related options given, but loading from checkpoint not requested.")
         start_step = 0
         algorithm_dict = None
         optimizer_dict = None
