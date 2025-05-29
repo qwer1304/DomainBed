@@ -2585,24 +2585,6 @@ class GLSD(ERM):
         )
         """
 
-    """
-    def get_extra_state(self):
-        # Return any extra state to include in the module’s state_dict.
-        # Dumps the replay buffer and returns the state_dict to add to module's state_dict
-        buffer_path = self.checkpoint_dir+"/replay_buffer"
-        buffer_path.mkdir(parents=True, exist_ok=True)
-        self.buffer.dumps(buffer_path)
-        return {"replay_buffer_path": str(buffer_path)}
-
-    
-    def set_extra_state(self, state):
-        buffer_path = state["replay_buffer_path"]
-        if buffer_path:
-            self.buffer.loads(buffer_path)
-        else:
-            print("No replay buffer path found in the checkpoint.")
-    """
-
     def update(self, minibatches, unlabeled=None):
     
         def calculate_Fks(x, tau=1e-2):
