@@ -33,6 +33,7 @@ if __name__ == "__main__":
         else:
             cuda_rng_state = None
 
+        checkpoint_file = os.path.join(args.output_dir, filename)
         save_dict = {
             "args": vars(args),
             "model_input_shape": dataset.input_shape,
@@ -45,12 +46,13 @@ if __name__ == "__main__":
             "rng_state": torch.get_rng_state(),
             "cuda_rng_state": cuda_rng_state,
             "numpy_rng_state": np.random.get_state(),
-            "python_rng_state": random.getstate()
+            "python_rng_state": random.getstate(),
+            "checkpoint_file": checkpoint_file,
         }
-        torch.save(save_dict, os.path.join(args.output_dir, filename))
+        torch.save(save_dict, checkpoint_file) # Saves an object to a disk file.
         
     def load_checkpoint(filename):
-        save_dict = torch.load(filename, weights_only=False) # to allow loading optimizer and rng states
+        save_dict = torch.load(filename, weights_only=False) # Loads an object saved with torch.save() from a file.
         """
         dataset.input_shape = save_dict['model_input_shape']
         dataset.num_classes = save_dict['model_num_classes']

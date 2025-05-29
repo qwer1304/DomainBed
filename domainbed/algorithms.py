@@ -22,6 +22,7 @@ from domainbed.lib.misc import (
     )
 from torchrl.data import ReplayBuffer, LazyTensorStorage
 from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
+import os
 
 import logging
 
@@ -2570,7 +2571,7 @@ class GLSD(ERM):
         rb = ReplayBuffer(storage=LazyTensorStorage(5*num_domains*hparams['batch_size'], ndim=1, device=device), sampler=SamplerWithoutReplacement(), 
             batch_size=num_domains*hparams['batch_size'],)# dim_extend=1,)
         self.buffer = rb
-        self.checkpoint_dir = None # Needed to persist the buffer
+        self.checkpoint_file = None # Needed to persist the buffer
         self.hparams = hparams
         self.register_buffer('update_count', torch.tensor([0]))
         self.register_buffer('pi', torch.tensor([1]+[0]*(num_domains-1)))
@@ -2585,6 +2586,41 @@ class GLSD(ERM):
         )
         """
 
+    """
+    module = self
+    register_load_state_dict_pre_hook(hook): Register a pre-hook to be run before module's load_state_dict() is called.
+        hook(module, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs) -> None 
+    register_load_state_dict_post_hook(hook): Register a post-hook to be run after module's load_state_dict() is called.
+        hook(module, incompatible_keys) -> None
+        The given incompatible_keys can be modified inplace if needed.
+    register_state_dict_post_hook(hook): Register a post-hook for the state_dict() method.
+        hook(module, state_dict, prefix, local_metadata) -> None
+        The registered hooks can modify the state_dict inplace.
+    register_state_dict_pre_hook(hook): Register a pre-hook for the state_dict() method.
+        hook(module, prefix, keep_vars) -> None
+    def get_extra_state(self):
+        # Return any extra state to include in the module's state_dict.
+        # Dumps the replay buffer and returns the state_dict to add to module's state_dict
+        # This function is called when building the module's state_dict().
+        # state_dict(): Return a dictionary containing references to the whole state of the module
+        checkpoint_file = self.checkpoint_file
+        path, fn = os.path.split(checkpoint_file)
+        fn = os.path.basename(path).split('.')[0]
+        buffer_dir = os.path.join(path, fn, "replay_buffer")
+        buffer_dir.mkdir(exist_ok=True)
+        self.buffer.dumps(buffer_dir)
+        return {"buffer_dir": str(buffer_dir)}
+
+    def set_extra_state(self, state):
+        # This function is called from load_state_dict()
+        # load_state_dict(state_dict): Copy parameters and buffers from state_dict into this module and its descendants.
+        buffer_dir = state["buffer_dir"]
+        if buffer_dir:
+            self.buffer.loads(buffer_dir)
+        else:
+            print("No replay buffer path found in the checkpoint.")
+    """
+    
     def update(self, minibatches, unlabeled=None):
     
         def calculate_Fks(x, tau=1e-2):
@@ -2832,8 +2868,9 @@ class GLSD(ERM):
             else:
                 ex = torch.mean(F.softplus(eta - seta_x.unsqueeze(0), beta=10), dim=1)
                 #ex = torch.mean(F.relu(eta - seta_x.unsqueeze(0)), dim=1)
-                loss = torch.sum(ex*mu)
-                return loss
+                #loss =(ex*mu).clamp(min=0).sum()
+                loss =(ex*mu).sum()
+               return loss
 
         def xsd_2nd_cdf(F1x, seta_x, F1y, seta_y, rel_tau=0.3, get_utility=False, margin=0.0):
             """Second-order stochastic dominance loss. Implements algorithm 2
@@ -2919,8 +2956,8 @@ class GLSD(ERM):
                 # Create a loss function (of theta) in such a way that it can be differentiated to obtain the gradients
                 # w.r.t. theta to improve theta. This is done by using Dankin's theorem.
                 # loss = delta*mu, i.e. delta[argmax(delta)]
-                loss = (delta*mu + margin).clamp(min=-1e-2).mean()
-                loss = (delta*mu).sum()
+                #loss = (delta*mu + margin).clamp(min=0).sum()
+                loss = (delta*mu + margin).sum()
                 return loss    
 
         # What are minibatches? Looks like they're minibatch per environment
@@ -2992,11 +3029,11 @@ class GLSD(ERM):
             if self.hparams['glsd_fsd_lambda'] > 0:
                 loss_fsd = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
             else:
-                loss_fsd = 0
+                loss_fsd = torch.tensor([0])
             loss = self.hparams['glsd_fsd_lambda']*loss_fsd + loss_ssd
         else:
             loss_fsd = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
-            loss_ssd = 0
+            loss_ssd = torch.tensor([0])
             loss = loss_fsd
 
         self.optimizer.zero_grad()
