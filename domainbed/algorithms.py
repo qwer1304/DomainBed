@@ -2917,7 +2917,7 @@ class GLSD(ERM):
                 # Create a loss function (of theta) in such a way that it can be differentiated to obtain the gradients
                 # w.r.t. theta to improve theta. This is done by using Dankin's theorem.
                 # loss = delta*mu, i.e. delta[argmax(delta)]
-                loss = (delta*mu + margin).clamp(min=0).mean()
+                loss = (delta*mu + margin).clamp(min=-1e-2).mean()
                 return loss    
 
         # What are minibatches? Looks like they're minibatch per environment
@@ -2979,7 +2979,7 @@ class GLSD(ERM):
         
         ref = self.buffer.sample()
         
-        final_margin = -0.05
+        final_margin = 0
         initial_margin = 0.2
         total_steps = 2500 # FIX ME!
         margin = initial_margin + (final_margin - initial_margin) * (self.update_count / total_steps)
