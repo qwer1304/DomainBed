@@ -2577,7 +2577,7 @@ class LossBalancer:
         """
         normalized = {}
         for name, loss in loss_dict.items():
-            val = loss.detach().item()
+            val = abs(loss.detach().item())
             if self.running_avgs[name] is None:
                 self.running_avgs[name] = val
             else:
