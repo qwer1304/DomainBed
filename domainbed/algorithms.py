@@ -2570,6 +2570,7 @@ class GLSD(ERM):
         rb = ReplayBuffer(storage=LazyTensorStorage(5*num_domains*hparams['batch_size'], ndim=1, device=device), sampler=SamplerWithoutReplacement(), 
             batch_size=num_domains*hparams['batch_size'],)# dim_extend=1,)
         self.buffer = rb
+        self.checkpoint_dir = None # Needed to persist the buffer
         self.hparams = hparams
         self.register_buffer('update_count', torch.tensor([0]))
         self.register_buffer('pi', torch.tensor([1]+[0]*(num_domains-1)))
@@ -2583,6 +2584,26 @@ class GLSD(ERM):
             weight_decay=self.hparams['weight_decay']
         )
         """
+
+    """
+    def get_extra_state(self):
+        # Return any extra state to include in the module’s state_dict.
+        # Dumps the replay buffer and returns the state_dict to add to module's state_dict
+        buffer_path = self.checkpoint_dir+"/replay_buffer"
+        buffer_path.mkdir(parents=True, exist_ok=True)
+        self.buffer.dumps(buffer_path)
+        return {"replay_buffer_path": str(buffer_path)}
+
+    def set_extra_state(self, state):
+        """
+        This function is called from load_state_dict() to handle any extra state found within the state_dict.
+        """
+        buffer_path = state["replay_buffer_path"]
+        if buffer_path:
+            self.buffer.loads(buffer_path)
+        else:
+            print("No replay buffer path found in the checkpoint.")
+    """
 
     def update(self, minibatches, unlabeled=None):
     
@@ -2994,7 +3015,9 @@ class GLSD(ERM):
                 loss_fsd = 0
             loss = self.hparams['glsd_fsd_lambda']*loss_fsd + loss_ssd
         else:
-            loss = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
+            loss_fsd = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
+            loss_ssd = 0
+            loss = loss_fsd
 
         self.optimizer.zero_grad()
         loss.backward(retain_graph=True)
@@ -3012,7 +3035,7 @@ class GLSD(ERM):
         if pi_max < 1:
             worst_e_index = -worst_e_index
         # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
-        return {'loss': loss.item(), 'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }               
+        return {'loss': loss.item(), 'loss_FSD': loss_fsd.item(), 'loss_SSD': loss_SSD.item(), 'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }               
 
 class GLSD_SSD(GLSD):
     """GLSD_SSD algorithm """
