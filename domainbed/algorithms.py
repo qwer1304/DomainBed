@@ -3076,10 +3076,10 @@ class GLSD(ERM):
             if self.hparams['glsd_fsd_lambda'] > 0:
                 loss_fsd = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
             else:
-                loss_fsd = torch.tensor([0])
+                loss_fsd = torch.zeros_like(loss_fsd)
         else:
             loss_fsd = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
-            loss_ssd = torch.tensor([0])
+            loss_ssd = torch.zeros_like(loss_fsd)
 
         normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd})
 
