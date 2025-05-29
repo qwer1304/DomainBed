@@ -3001,11 +3001,11 @@ class GLSD(ERM):
         self.update_count += 1
         
         pi_max, worst_e = torch.max(pi,dim=0)
-        print('size pi:',pi.size(),'worst_e:',worst_e.item())
+        worst_e_index = worst_e.item()
         if pi_max < 1:
-            print('size pi:',pi.size(),'worst_e:',worst_e.item(),(-worst_e).item())
-            worst_e = -worst_e
-        return {'loss': loss.item(), 'nll': nll.mean().item(), "worst_e": worst_e.item(), }               
+            print('size pi:',pi.size(),'worst_e:',worst_e_index,-worst_e_index)
+            worst_e_index = -worst_e_index
+        return {'loss': loss.item(), 'nll': nll.mean().item(), "worst_e": worst_e_index, }               
 
 class GLSD_SSD(GLSD):
     """GLSD_SSD algorithm """
