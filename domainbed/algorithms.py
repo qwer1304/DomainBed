@@ -2833,7 +2833,7 @@ class GLSD(ERM):
                 loss = torch.sum(ex*mu)
                 return loss
 
-        def xsd_2nd_cdf(F1x, seta_x, F1y, seta_y, rel_tau=0.3, get_utility=False):
+        def xsd_2nd_cdf(F1x, seta_x, F1y, seta_y, rel_tau=0.3, get_utility=False, margin=0.0):
             """Second-order stochastic dominance loss. Implements algorithm 2
 
             Args:
@@ -2892,8 +2892,10 @@ class GLSD(ERM):
 
             eps = torch.finfo(x.dtype).eps
 
-            tau = (torch.max(F2x - F2y) - torch.min(F2x - F2y))*rel_tau
-            mu = torch.exp(((F2x - F2y) - torch.max(F2x - F2y))/tau)
+            delta = F2x - F2y
+            # mu = argmax(delta)
+            tau = (torch.max(delta) - torch.min(delta))*rel_tau
+            mu = torch.exp((delta - torch.max(delta))/tau)
             mu = mu/(torch.sum(mu)+eps)
             mu = mu.detach()
 
@@ -2914,7 +2916,8 @@ class GLSD(ERM):
             else:
                 # Create a loss function (of theta) in such a way that it can be differentiated to obtain the gradients
                 # w.r.t. theta to improve theta. This is done by using Dankin's theorem.
-                loss = torch.sum((F2x - F2y)*mu)
+                # loss = delta*mu, i.e. delta[argmax(delta)]
+                loss = (delta*mu + margin).clamp(min=0).sum()
                 return loss    
 
         # What are minibatches? Looks like they're minibatch per environment
@@ -2976,8 +2979,13 @@ class GLSD(ERM):
         
         ref = self.buffer.sample()
         
+        final_margin = -0.05
+        initial_margin = 0.2
+        total_steps = 2500 # FIX ME!
+        margin = initial_margin + (final_margin - initial_margin) * (self.update_count / total_steps)
+
         if self.SSD:
-            loss = xsd_2nd_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
+            loss = xsd_2nd_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"], margin=margin)
         else:
             loss = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
 
