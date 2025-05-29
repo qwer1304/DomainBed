@@ -4,4 +4,5 @@ python -m domainbed.scripts.train^
        --dataset ColoredMNIST^
        --save_model_every_checkpoint^
        --checkpoint_freq 1^
-       --test_env 4
+       --test_env 4^
+       --steps 2500       

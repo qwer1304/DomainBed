@@ -2050,7 +2050,7 @@ class AbstractCAD(Algorithm):
     def bn_loss(self, z, y, dom_labels):
         """Contrastive based domain bottleneck loss
          The implementation is based on the supervised contrastive loss (SupCon) introduced by
-         P. Khosla, et al., in “Supervised Contrastive Learning“.
+         P. Khosla, et al., in â€œSupervised Contrastive Learningâ€œ.
         Modified from  https://github.com/HobbitLong/SupContrast/blob/8d0963a7dbb1cd28accb067f5144d61f18a77588/losses.py#L11
         """
         device = z.device
@@ -2587,17 +2587,15 @@ class GLSD(ERM):
 
     """
     def get_extra_state(self):
-        # Return any extra state to include in the module�s state_dict.
+        # Return any extra state to include in the module’s state_dict.
         # Dumps the replay buffer and returns the state_dict to add to module's state_dict
         buffer_path = self.checkpoint_dir+"/replay_buffer"
         buffer_path.mkdir(parents=True, exist_ok=True)
         self.buffer.dumps(buffer_path)
         return {"replay_buffer_path": str(buffer_path)}
 
+    
     def set_extra_state(self, state):
-        """
-        This function is called from load_state_dict() to handle any extra state found within the state_dict.
-        """
         buffer_path = state["replay_buffer_path"]
         if buffer_path:
             self.buffer.loads(buffer_path)
