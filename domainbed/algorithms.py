@@ -2870,7 +2870,7 @@ class GLSD(ERM):
                 #ex = torch.mean(F.relu(eta - seta_x.unsqueeze(0)), dim=1)
                 #loss =(ex*mu).clamp(min=0).sum()
                 loss =(ex*mu).sum()
-               return loss
+                return loss
 
         def xsd_2nd_cdf(F1x, seta_x, F1y, seta_y, rel_tau=0.3, get_utility=False, margin=0.0):
             """Second-order stochastic dominance loss. Implements algorithm 2
