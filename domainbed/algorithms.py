@@ -2556,6 +2556,52 @@ class ADRMX(Algorithm):
     
     def predict(self, x):
         return self.network(x)
+
+class LossBalancer:
+    def __init__(self, loss_names, alpha=0.99):
+        """
+        Args:
+            loss_names (list of str): Names of the losses to track.
+            alpha (float): Smoothing factor for exponential moving average.
+        """
+        self.alpha = alpha
+        self.running_avgs = {name: None for name in loss_names}
+
+    def update(self, loss_dict):
+        """
+        Args:
+            loss_dict (dict of str -> torch.Tensor): Dictionary mapping loss names to loss values.
+        
+        Returns:
+            dict of str -> torch.Tensor: Normalized losses.
+        """
+        normalized = {}
+        for name, loss in loss_dict.items():
+            val = loss.detach().item()
+            if self.running_avgs[name] is None:
+                self.running_avgs[name] = val
+            else:
+                self.running_avgs[name] = self.alpha * self.running_avgs[name] + (1 - self.alpha) * val
+
+            normalized[name] = loss / (self.running_avgs[name] + 1e-8)
+
+        return normalized
+
+    def weighted_sum(self, norm_losses, weights):
+        """
+        Compute a weighted sum of normalized losses.
+
+        Args:
+            norm_losses (dict of str -> torch.Tensor): Normalized losses.
+            weights (dict of str -> float): Weights for each loss.
+
+        Returns:
+            torch.Tensor: Weighted sum of normalized losses.
+        """
+        total = 0.0
+        for name, weight in weights.items():
+            total += weight * norm_losses[name]
+        return total
         
 class GLSD(ERM):
     """GLSD algorithm """
@@ -2576,6 +2622,7 @@ class GLSD(ERM):
         self.register_buffer('update_count', torch.tensor([0]))
         self.register_buffer('pi', torch.tensor([1]+[0]*(num_domains-1)))
         self.register_buffer('pi_prev', torch.tensor([0]*(num_domains-1)+[1]))
+        self.loss_balancer = LossBalancer(["fsd", "ssd"], alpha=0.99)
 
         """
         self.optimizer = torch.optim.SGD(
@@ -3030,11 +3077,15 @@ class GLSD(ERM):
                 loss_fsd = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
             else:
                 loss_fsd = torch.tensor([0])
-            loss = self.hparams['glsd_fsd_lambda']*loss_fsd + loss_ssd
         else:
             loss_fsd = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
             loss_ssd = torch.tensor([0])
-            loss = loss_fsd
+
+
+        normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd})
+
+        # Combine them with weights
+        loss = loss_balancer.weighted_sum(normalized, weights={"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0})
 
         self.optimizer.zero_grad()
         loss.backward(retain_graph=True)
