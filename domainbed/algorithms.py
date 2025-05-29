@@ -2815,8 +2815,9 @@ class GLSD(ERM):
             eta_values = sorted_eta + eps # [2b,]
             eta_values = eta_values.detach() # here eta are treated as constants not as coming from model
 
-            tau = (torch.max(F1x - F1y) - torch.min(F1x - F1y))*rel_tau
-            mu = torch.exp(((F1x - F1y) - torch.max(F1x - F1y))/tau)
+            delta = F1x - F1y
+            tau = (torch.max(delta) - torch.min(delta))*rel_tau
+            mu = torch.exp((delta - torch.max(delta))/tau)
             mu = mu/(torch.sum(mu)+eps)
             mu = mu.detach()
 
@@ -2918,6 +2919,7 @@ class GLSD(ERM):
                 # w.r.t. theta to improve theta. This is done by using Dankin's theorem.
                 # loss = delta*mu, i.e. delta[argmax(delta)]
                 loss = (delta*mu + margin).clamp(min=-1e-2).mean()
+                loss = delta*mu.sum()
                 return loss    
 
         # What are minibatches? Looks like they're minibatch per environment
@@ -2985,7 +2987,9 @@ class GLSD(ERM):
         margin = initial_margin + (final_margin - initial_margin) * (self.update_count / total_steps)
 
         if self.SSD:
-            loss = xsd_2nd_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"], margin=margin)
+            loss_fsd = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
+            loss_ssd = xsd_2nd_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"], margin=margin)
+            loss = loss_fsd + 10*loss_ssd
         else:
             loss = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
 
