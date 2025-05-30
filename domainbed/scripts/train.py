@@ -47,7 +47,6 @@ if __name__ == "__main__":
             "cuda_rng_state": cuda_rng_state,
             "numpy_rng_state": np.random.get_state(),
             "python_rng_state": random.getstate(),
-            "checkpoint_file": checkpoint_file,
         }
         torch.save(save_dict, checkpoint_file) # Saves an object to a disk file.
         
@@ -267,7 +266,7 @@ if __name__ == "__main__":
 
     if algorithm_dict is not None:
         algorithm.load_state_dict(algorithm_dict)
-        algorithm.optimizer.load_state_dict(algorithm_dict)
+        algorithm.optimizer.load_state_dict(otimizer_dict)
 
     algorithm.to(device)
 

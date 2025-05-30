@@ -20,10 +20,7 @@ from domainbed.lib.misc import (
     MovingAverage, ErmPlusPlusMovingAvg, l2_between_dicts, proj, Nonparametric,
             LARS,  SupConLossLambda
     )
-from torchrl.data import ReplayBuffer, LazyTensorStorage
-from torchrl.data.replay_buffers.samplers import SamplerWithoutReplacement
 import os
-
 import logging
 
 ALGORITHMS = [
@@ -2602,6 +2599,111 @@ class LossBalancer:
         for name, weight in weights.items():
             total += weight * norm_losses[name]
         return total
+
+class BatchedCircularBuffer:
+    def __init__(self, capacity, shape, dtype=torch.float32, device='cpu'):
+        self.capacity = capacity
+        self.shape = shape
+        self.device = device
+        self.buffer = torch.empty((capacity, *shape), dtype=dtype, device=device)
+        self.index = 0
+        self.size = 0
+
+    def append(self, batch):
+        batch_size = batch.size(0)
+        if batch_size > self.capacity:
+            batch = batch[-self.capacity:]  # keep only last capacity elements
+            batch_size = self.capacity
+
+        end_index = self.index + batch_size
+        if end_index <= self.capacity:
+            self.buffer[self.index:end_index] = batch
+        else:
+            first_part = self.capacity - self.index
+            self.buffer[self.index:] = batch[:first_part]
+            self.buffer[:end_index % self.capacity] = batch[first_part:]
+
+        self.index = (self.index + batch_size) % self.capacity
+        self.size = min(self.capacity, self.size + batch_size)
+
+    def get(self, count=None):
+        if self.size == 0:
+            return torch.empty((0, *self.shape), dtype=self.buffer.dtype, device=self.device)
+
+        count = self.size if count is None else min(count, self.size)
+        start = (self.index - self.size + self.capacity) % self.capacity
+
+        if start + count <= self.capacity:
+            return self.buffer[start:start + count]
+        else:
+            first = self.capacity - start
+            return torch.cat([self.buffer[start:], self.buffer[:count - first]], dim=0)
+
+    def sample(self, batch_size):
+        if self.size == 0:
+            raise ValueError("Buffer is empty; cannot sample.")
+
+        count = min(batch_size, self.size)
+        indices = torch.randint(0, self.size, (count,), device=self.device)
+        full = self.get()  # guaranteed to be contiguous
+        return full[indices]
+
+    def __len__(self):
+        return self.size
+
+class DictCircularBuffer:
+    def __init__(self, capacity, spec: dict, device='cpu'):
+        """
+        Args:
+            capacity: number of entries to hold
+            spec: dict mapping keys to (shape, dtype) tuples
+        """
+        self.capacity = capacity
+        self.device = device
+        self.buffers = {
+            key: torch.empty((capacity, *shape), dtype=dtype, device=device)
+            for key, (shape, dtype) in spec.items()
+        }
+        self.index = 0
+        self.size = 0
+
+    def append(self, batch: dict):
+        batch_size = next(iter(batch.values())).shape[0]
+        if batch_size > self.capacity:
+            batch = {k: v[-self.capacity:] for k, v in batch.items()}
+            batch_size = self.capacity
+
+        end = self.index + batch_size
+        for key, buf in self.buffers.items():
+            data = batch[key]
+            if end <= self.capacity:
+                buf[self.index:end] = data
+            else:
+                first = self.capacity - self.index
+                buf[self.index:] = data[:first]
+                buf[:end % self.capacity] = data[first:]
+
+        self.index = (self.index + batch_size) % self.capacity
+        self.size = min(self.size + batch_size, self.capacity)
+
+    def sample(self, batch_size):
+        count = min(batch_size, self.size)
+        indices = torch.randint(0, self.size, (count,), device=self.device)
+        return {k: self.get_all()[k][indices] for k in self.buffers}
+
+    def get_all(self):
+        result = {}
+        start = (self.index - self.size + self.capacity) % self.capacity
+        for key, buf in self.buffers.items():
+            if start + self.size <= self.capacity:
+                result[key] = buf[start:start + self.size]
+            else:
+                first = self.capacity - start
+                result[key] = torch.cat([buf[start:], buf[:self.size - first]], dim=0)
+        return result
+
+    def __len__(self):
+        return self.size
         
 class GLSD(ERM):
     """GLSD algorithm """
@@ -2614,11 +2716,20 @@ class GLSD(ERM):
             device = "cpu"
 
         self.SSD = SSD
-        rb = ReplayBuffer(storage=LazyTensorStorage(5*num_domains*hparams['batch_size'], ndim=1, device=device), sampler=SamplerWithoutReplacement(), 
-            batch_size=num_domains*hparams['batch_size'],)# dim_extend=1,)
-        self.buffer = rb
-        self.checkpoint_file = None # Needed to persist the buffer
         self.hparams = hparams
+        capacity = 5*num_domains*hparams['batch_size']
+        shape = ()
+        """
+        rb = BatchedCircularBuffer(capacity, shape, device=device)
+        """
+        spec = {"F1": (shape, torch.float32),
+                "sorted_eta": (shape, torch.float32)
+        }
+        if SSD:
+            spec["F2"] = (shape, torch.float32)
+            
+        rb = DictCircularBuffer(capacity, spec, device=device)
+        self.buffer = rb
         self.register_buffer('update_count', torch.tensor([0]))
         self.register_buffer('pi', torch.tensor([1]+[0]*(num_domains-1)))
         self.register_buffer('pi_prev', torch.tensor([0]*(num_domains-1)+[1]))
@@ -2645,28 +2756,19 @@ class GLSD(ERM):
         The registered hooks can modify the state_dict inplace.
     register_state_dict_pre_hook(hook): Register a pre-hook for the state_dict() method.
         hook(module, prefix, keep_vars) -> None
+    """
+
     def get_extra_state(self):
         # Return any extra state to include in the module's state_dict.
         # Dumps the replay buffer and returns the state_dict to add to module's state_dict
         # This function is called when building the module's state_dict().
         # state_dict(): Return a dictionary containing references to the whole state of the module
-        checkpoint_file = self.checkpoint_file
-        path, fn = os.path.split(checkpoint_file)
-        fn = os.path.basename(path).split('.')[0]
-        buffer_dir = os.path.join(path, fn, "replay_buffer")
-        buffer_dir.mkdir(exist_ok=True)
-        self.buffer.dumps(buffer_dir)
-        return {"buffer_dir": str(buffer_dir)}
+        return {"buffer": self.buffer}
 
     def set_extra_state(self, state):
         # This function is called from load_state_dict()
         # load_state_dict(state_dict): Copy parameters and buffers from state_dict into this module and its descendants.
-        buffer_dir = state["buffer_dir"]
-        if buffer_dir:
-            self.buffer.loads(buffer_dir)
-        else:
-            print("No replay buffer path found in the checkpoint.")
-    """
+        self.buffer = state["buffer"]
     
     def update(self, minibatches, unlabeled=None):
     
@@ -2846,7 +2948,7 @@ class GLSD(ERM):
             scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
             # Softmax over dominated scores to get positive weights sum to 1
             pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0                      
-            return pi, F1, sorted_eta
+            return pi, F1, F2, sorted_eta
 
         def fill_list(x):
             # Identify nonzero elements
@@ -2864,6 +2966,34 @@ class GLSD(ERM):
             # Replace only valid (non-leading) zeros
             filled[valid_mask] = nonzero_values[group_ids[valid_mask]]
             return filled
+
+        def interp1_linear_torch(x, xp, fp):
+            """
+            Differentiable 1D linear interpolation in PyTorch (like MATLAB interp1, linear case).
+
+            Args:
+                x (torch.Tensor): target x values
+                xp (torch.Tensor): known x values (1D, must be sorted ascending)
+                fp (torch.Tensor): known y values (1D, same length as xp)
+
+            Returns:
+                torch.Tensor: interpolated y values at x
+            """
+            # Find indices for the left point
+            idx = torch.searchsorted(xp, x, right=False).clamp(1, len(xp) - 1)
+            idx0 = idx - 1
+            idx1 = idx
+
+            x0 = xp[idx0]
+            x1 = xp[idx1]
+            y0 = fp[idx0]
+            y1 = fp[idx1]
+
+            # Linear interpolation formula
+            slope = (y1 - y0) / (x1 - x0)
+            y = y0 + slope * (x - x0)
+
+            return y
 
         def xsd_1st_cdf(F1x, seta_x, F1y, seta_y, rel_tau=0.3, get_utility=False):
             """First-order stochastic dominance loss.
@@ -2939,15 +3069,15 @@ class GLSD(ERM):
             # Single list of 0's and 1's corresponding to x's and y's
             is_y = torch.cat([torch.zeros_like(seta_x), torch.ones_like(seta_y)])
             eta = torch.cat([seta_x, seta_y])
-            F1xy = torch.cat([F1x, F1y])
             idx_sort = torch.argsort(eta) # returns indices of eta that would result in it being sorted
             sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order
             sorted_eta = eta[idx_sort] # sort eta
-            sorted_F1xy = F1xy[idx_sort] # sort F1xy
             
+            F1xy = torch.cat([F1x, F1y])
+            sorted_F1xy = F1xy[idx_sort] # sort F1xy
             F1x = fill_list((1-sorted_is_y)*sorted_F1xy)
             F1y = fill_list(sorted_is_y*sorted_F1xy)
-            
+                       
             # Calculate eta_i - eta_{i-1}
             h = sorted_eta - torch.roll(sorted_eta,1) #torch.roll is circular shift rigt one place
 
@@ -3032,7 +3162,7 @@ class GLSD(ERM):
         This means we're looking for a dominated environment (one with smallest u)
         """
         if self.SSD:
-            pi, F1, sorted_eta = dominated_2nd_cdf(-losses) # F1, sorted_eta depend on network
+            pi, F1, F2, sorted_eta = dominated_2nd_cdf(-losses) # F1, sorted_eta depend on network
         else:
             pi, F1, sorted_eta = dominated_1st_cdf(-losses) # F1, sorted_eta depend on network
 
@@ -3055,16 +3185,20 @@ class GLSD(ERM):
         lambdas = lambdas.detach()
 
         F1 = (F1 * lambdas.unsqueeze(1)).sum(0)
+        if self.SSD:
+            F2 = (F2 * lambdas.unsqueeze(1)).sum(0)
         
         if len(self.buffer) == 0:
             device = F1.device  # or sorted_eta.device
-            data = {
-                "F1": torch.rand_like(F1, device=device),
-                "sorted_eta": sorted_eta.detach().to(device)
-            }                       
-            self.buffer.extend(data)
+            data = {"F1": torch.rand_like(F1, device=device),
+                    "sorted_eta": sorted_eta.detach().to(device),
+            }                      
+            if self.SSD:
+                data["F2"] = torch.rand_like(F1, device=device)
+
+            self.buffer.append(data)
         
-        ref = self.buffer.sample()
+        ref = self.buffer.sample(len(sorted_eta))
         
         final_margin = 0
         initial_margin = 0.2
@@ -3090,11 +3224,11 @@ class GLSD(ERM):
         loss.backward(retain_graph=True)
         self.optimizer.step()
 
-        data = {
-            "F1": F1.detach(),
-            "sorted_eta": sorted_eta.detach(),
-        }
-        self.buffer.extend(data)
+        data = {"F1": F1.detach(), "sorted_eta": sorted_eta.detach()}
+        if self.SSD:
+            data["F2"] = F2.detach()
+        self.buffer.append(data)
+        
         self.update_count += 1
         
         pi_max, worst_env = torch.max(pi,dim=0)
