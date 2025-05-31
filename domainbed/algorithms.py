@@ -3191,7 +3191,7 @@ class GLSD(ERM):
         if len(self.buffer) == 0:
             device = F1.device  # or sorted_eta.device
             data = {"F1": torch.rand_like(F1, device=device),
-                    "sorted_eta": sorted_eta.to(device),
+                    "sorted_eta": sorted_eta.clone().to(device),
             }                      
             if self.SSD:
                 data["F2"] = torch.rand_like(F1, device=device)
@@ -3224,7 +3224,7 @@ class GLSD(ERM):
         loss.backward(retain_graph=True)
         self.optimizer.step()
 
-        data = {"F1": F1.detach(), "sorted_eta": sorted_eta.detach()}
+        data = {"F1": F1.detach(), "sorted_eta": sorted_eta.clone()}
         if self.SSD:
             data["F2"] = F2.detach()
         self.buffer.append(data)
