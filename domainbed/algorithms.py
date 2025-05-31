@@ -3191,7 +3191,7 @@ class GLSD(ERM):
         if len(self.buffer) == 0:
             device = F1.device  # or sorted_eta.device
             data = {"F1": torch.rand_like(F1, device=device),
-                    "sorted_eta": sorted_eta.detach().to(device),
+                    "sorted_eta": sorted_eta.to(device),
             }                      
             if self.SSD:
                 data["F2"] = torch.rand_like(F1, device=device)
