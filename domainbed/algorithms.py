@@ -3162,7 +3162,7 @@ class GLSD(ERM):
         
         if len(self.buffer) == 0:
             device = sorted_eta.device  # or sorted_eta.device
-            data = {"sorted_eta": sorted_eta.detach().to(device),}                      
+            data = {"sorted_eta": sorted_eta.detach().to(device),} # assume we're no backproping the error to previous rounds           
             self.buffer.append(data)
         
         ref = self.buffer.sample(len(sorted_eta))
@@ -3173,7 +3173,8 @@ class GLSD(ERM):
         margin = initial_margin + (final_margin - initial_margin) * (self.update_count / total_steps)
 
         if self.SSD:
-            loss_ssd, loss_fsd = xsd_2nd_cdf(sorted_eta, ref["sorted_eta"], margin=margin)
+            loss_ssd = xsd_2nd_cdf(sorted_eta, ref["sorted_eta"], margin=margin)
+            loss_fsd = torch.zeros_like(loss_ssd) # FIX ME!!!!!!!!
         else:
             loss_fsd = xsd_1st_cdf(sorted_eta, ref["sorted_eta"])
             loss_ssd = torch.zeros_like(loss_fsd)
@@ -3187,7 +3188,7 @@ class GLSD(ERM):
         loss.backward(retain_graph=True)
         self.optimizer.step()
 
-        data = {"sorted_eta": sorted_eta}
+        data = {"sorted_eta": sorted_eta.detach()} # assume we're no backproping the error to previous rounds
         self.buffer.append(data)
         
         self.update_count += 1
