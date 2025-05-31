@@ -2785,9 +2785,11 @@ class GLSD(ERM):
             sorted_x_flat, _ = torch.sort(x_flat, dim=1)           # (n, b)
             # eta: shape (n*b,) = sorted losses (t_k)
             eta = x.reshape(-1)                                    # (nb,)
-            sorted_eta, _ = torch.sort(eta)                        # (nb,)
+            sorted_eta, sorted_idx = torch.sort(eta)               # (nb,)
             sorted_eta_all = sorted_eta.unsqueeze(0).unsqueeze(2)  # (1, nb, 1)
             sorted_x_i = sorted_x_flat.unsqueeze(1)                # (n, 1, b)
+            envs = (torch.ones_like(x) * (torch.arange(0,n).unsqueeze(1))).reshape(-1) # (nb,)
+            envs = envs[sorted_idx] # tells which environment each eta came from
 
             # Compute sigmoid((t_k - x_ij)/tau) for all i, k, j
             sigmoid_matrix = torch.sigmoid((sorted_eta_all - sorted_x_i) / tau)  # (n, nb, b)
@@ -2819,7 +2821,7 @@ class GLSD(ERM):
             # Calculate F2 for all etas
             F2 = torch.cumsum(F2_incre,1)
 
-            return sorted_eta, F1, F2
+            return (sorted_eta,envs), F1, F2
 
         def dominating_2nd_cdf(x, tau=1.0):
             """
@@ -2833,7 +2835,7 @@ class GLSD(ERM):
             
             device = x.device
             n,b = x.size()
-            sorted_eta, F1, F2 = calculate_Fks(x)
+            (sorted_eta, _), F1, F2 = calculate_Fks(x)
            
             diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, b]
             
@@ -2876,7 +2878,7 @@ class GLSD(ERM):
             device = x.device
             n,b = x.size()
 
-            sorted_eta, F1, _ = calculate_Fks(x)
+            (sorted_eta, _), F1, _ = calculate_Fks(x)
            
             diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, b]
             
@@ -2915,7 +2917,7 @@ class GLSD(ERM):
             
             device = x.device
             n,b = x.size()
-            sorted_eta, F1, F2 = calculate_Fks(x)
+            (sorted_eta, _), F1, F2 = calculate_Fks(x)
            
             diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, b]
             
@@ -3007,13 +3009,13 @@ class GLSD(ERM):
             
             nX, nY = len(x), len(y)
             xy = torch.vstack((seta_x,seta_y)) # assumes both are same length
-            sorted_eta, F1, _ = calculate_Fks(xy) # (2b,), (2,nb), (2,nb)
+            (sorted_eta, _), F1, _ = calculate_Fks(xy) # (2b,), (2,nb), (2,nb)
             
             F1x = F1[0].squeeze() # (2b,)
             F1y = F1[1].squeeze() # (2b,)
             eps = torch.finfo(F1x.dtype).eps
             eta_values = sorted_eta + eps # [2b,]
-            eta_values = eta_values.detach() # From Shicong: here eta are treated as constants not as coming from model
+            eta_values = eta_values.detach() # From Shicong's implementation: here eta are treated as constants not as coming from model
 
             delta = F1x - F1y
             tau = (torch.max(delta) - torch.min(delta))*rel_tau
@@ -3053,18 +3055,20 @@ class GLSD(ERM):
             
             nX, nY = len(x), len(y)
             xy = torch.vstack((seta_x,seta_y)) # assumes both are same length
-            sorted_eta, F1, F2 = calculate_Fks(xy) # (2b,), (2,nb), (2,nb)
+            (sorted_eta, sorted_is_y), F1, F2 = calculate_Fks(xy) # (2b,), (2,nb), (2,nb)
             
             F1x = F1[0].squeeze() # (2b,)
             F1y = F1[1].squeeze() # (2b,)
             F2x = F2[0].squeeze() # (2b,)
             F2y = F2[1].squeeze() # (2b,)
             
+            """
             # Single list of 0's and 1's corresponding to x's and y's
             is_y = torch.cat([torch.zeros_like(seta_x), torch.ones_like(seta_y)])
             eta = torch.cat([seta_x, seta_y])
             idx_sort = torch.argsort(eta) # returns indices of eta that would result in it being sorted
-            sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order           
+            sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order 
+            """
 
             """
             assuming that x_0 < x_1 < ... < x_n is sorted, for any x_i the corresponding F2x entry 
@@ -3174,7 +3178,7 @@ class GLSD(ERM):
 
         if self.SSD:
             loss_ssd = xsd_2nd_cdf(sorted_eta, ref["sorted_eta"], margin=margin)
-            loss_fsd = torch.zeros_like(loss_ssd) # FIX ME!!!!!!!!
+            loss_fsd = xsd_1st_cdf(sorted_eta, ref["sorted_eta"])
         else:
             loss_fsd = xsd_1st_cdf(sorted_eta, ref["sorted_eta"])
             loss_ssd = torch.zeros_like(loss_fsd)
