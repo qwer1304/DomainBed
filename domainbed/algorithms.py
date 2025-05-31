@@ -2788,7 +2788,7 @@ class GLSD(ERM):
             sorted_eta, sorted_idx = torch.sort(eta)               # (nb,)
             sorted_eta_all = sorted_eta.unsqueeze(0).unsqueeze(2)  # (1, nb, 1)
             sorted_x_i = sorted_x_flat.unsqueeze(1)                # (n, 1, b)
-            envs = (torch.ones_like(x) * (torch.arange(0,n).unsqueeze(1))).reshape(-1) # (nb,)
+            envs = (torch.ones_like(x) * (torch.arange(0,n,device=device).unsqueeze(1))).reshape(-1) # (nb,)
             envs = envs[sorted_idx] # tells which environment each eta came from
 
             # Compute sigmoid((t_k - x_ij)/tau) for all i, k, j
