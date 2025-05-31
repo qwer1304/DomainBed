@@ -2722,11 +2722,7 @@ class GLSD(ERM):
         """
         rb = BatchedCircularBuffer(capacity, shape, device=device)
         """
-        spec = {"F1": (shape, torch.float32),
-                "sorted_eta": (shape, torch.float32)
-        }
-        if SSD:
-            spec["F2"] = (shape, torch.float32)
+        spec = {"sorted_eta": (shape, torch.float32)}
             
         rb = DictCircularBuffer(capacity, spec, device=device)
         self.buffer = rb
@@ -2805,7 +2801,7 @@ class GLSD(ERM):
             is_y = is_y.reshape(-1) # n*samples
             eta = x.reshape(-1)
             idx_sort = torch.argsort(eta) # returns indices of eta that would result in it being sorted
-            sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order
+            sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order (nb,)
             sorted_eta = eta[idx_sort] # sort eta
             # Calculate \hat{F}_1(X) for all eta
             F1 = torch.zeros(n,n*b,device=device) # n x n*b
@@ -2874,7 +2870,6 @@ class GLSD(ERM):
                 x: n x samples of n distributions, which we want to maximize.
             Returns:
                 The index of dominated cdf (negative means it was found heuristically)
-                Per environment F1
                 sorted_eta eta for which Fk were computed 
             """    
             
@@ -2907,7 +2902,7 @@ class GLSD(ERM):
             scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
             # Softmax over dominated scores to get positive weights sum to 1
             pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0                     
-            return pi, F1, sorted_eta
+            return pi, sorted_eta
 
         def dominated_2nd_cdf(x, tau=1.0):
             """
@@ -2915,7 +2910,6 @@ class GLSD(ERM):
                 x: n x samples of n distributions, which we want to maximize.
             Returns:
                 The index of dominated cdf (negative means it was found heuristically)
-                Per environment F1
                 sorted_eta eta for which Fk were computed 
             """    
             
@@ -2948,7 +2942,7 @@ class GLSD(ERM):
             scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
             # Softmax over dominated scores to get positive weights sum to 1
             pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0                      
-            return pi, F1, F2, sorted_eta
+            return pi, sorted_eta
 
         def fill_list(x):
             # Identify nonzero elements
@@ -2995,11 +2989,11 @@ class GLSD(ERM):
 
             return y
 
-        def xsd_1st_cdf(F1x, seta_x, F1y, seta_y, rel_tau=0.3, get_utility=False):
+        def xsd_1st_cdf(seta_x, seta_y, rel_tau=0.3, get_utility=False):
             """First-order stochastic dominance loss.
 
             Args:
-                x, y: F1, sorted eta (correspondig to Fk) from two distributions, which we want to maximize.
+                x, y: sorted eta (utolities) (correspondig to Fk) from two distributions, which we want to maximize.
                       x - is the new samples, y - is the reference
                       x - X_{\theta_{t,\bar{t}}, y - X_{\theta_t}
                 rel_tau: Softmax temperature control
@@ -3012,22 +3006,14 @@ class GLSD(ERM):
             """    
             
             nX, nY = len(x), len(y)
-            # Single list of 0's and 1's corresponding to x's and y's
-            is_y = torch.cat([torch.zeros_like(seta_x), torch.ones_like(seta_y)])
-                       
-            eta = torch.cat([seta_x, seta_y])
-            F1xy = torch.cat([F1x, F1y])
-            idx_sort = torch.argsort(eta) # returns indices of eta that would result in it being sorted
-            sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order
-            sorted_eta = eta[idx_sort] # sort eta
-            sorted_F1xy = F1xy[idx_sort] # sort F1xy
+            xy = torch.vstack((seta_x,seta_y)) # assumes both are same length
+            sorted_eta, F1, _ = calculate_Fks(xy) # (2b,), (2,nb), (2,nb)
             
-            F1x = fill_list((1-sorted_is_y)*sorted_F1xy)
-            F1y = fill_list(sorted_is_y*sorted_F1xy)
-            
+            F1x = F1[0].squeeze() # (2b,)
+            F1y = F1[1].squeeze() # (2b,)
             eps = torch.finfo(F1x.dtype).eps
             eta_values = sorted_eta + eps # [2b,]
-            eta_values = eta_values.detach() # here eta are treated as constants not as coming from model
+            eta_values = eta_values.detach() # From Shicong: here eta are treated as constants not as coming from model
 
             delta = F1x - F1y
             tau = (torch.max(delta) - torch.min(delta))*rel_tau
@@ -3049,11 +3035,11 @@ class GLSD(ERM):
                 loss =(ex*mu).sum()
                 return loss
 
-        def xsd_2nd_cdf(F1x, seta_x, F1y, seta_y, rel_tau=0.3, get_utility=False, margin=0.0):
+        def xsd_2nd_cdf(seta_x, seta_y, rel_tau=0.3, get_utility=False, margin=0.0):
             """Second-order stochastic dominance loss. Implements algorithm 2
 
             Args:
-                x, y: F1, sorted eta (correspondig to Fk) from two distributions, which we want to maximize.
+                x, y: sorted eta (correspondig to Fk) from two distributions, which we want to maximize.
                       x - is the new samples, y - is the reference
                       x - X_{\theta_{t,\bar{t}}, y - X_{\theta_t}
                 rel_tau: Softmax temperature control
@@ -3066,31 +3052,19 @@ class GLSD(ERM):
             """    
             
             nX, nY = len(x), len(y)
+            xy = torch.vstack((seta_x,seta_y)) # assumes both are same length
+            sorted_eta, F1, F2 = calculate_Fks(xy) # (2b,), (2,nb), (2,nb)
+            
+            F1x = F1[0].squeeze() # (2b,)
+            F1y = F1[1].squeeze() # (2b,)
+            F2x = F2[0].squeeze() # (2b,)
+            F2y = F2[1].squeeze() # (2b,)
+            
             # Single list of 0's and 1's corresponding to x's and y's
             is_y = torch.cat([torch.zeros_like(seta_x), torch.ones_like(seta_y)])
             eta = torch.cat([seta_x, seta_y])
             idx_sort = torch.argsort(eta) # returns indices of eta that would result in it being sorted
-            sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order
-            sorted_eta = eta[idx_sort] # sort eta
-            
-            F1xy = torch.cat([F1x, F1y])
-            sorted_F1xy = F1xy[idx_sort] # sort F1xy
-            F1x = fill_list((1-sorted_is_y)*sorted_F1xy)
-            F1y = fill_list(sorted_is_y*sorted_F1xy)
-                       
-            # Calculate eta_i - eta_{i-1}
-            h = sorted_eta - torch.roll(sorted_eta,1) #torch.roll is circular shift rigt one place
-
-            F2x_incre = h*torch.roll(F1x,1) # (eta_i - eta_{i-1})*F_1(X; eta_{i-1}); roll shifts right by one place to align F_1 and h
-            F2y_incre = h*torch.roll(F1y,1) # (eta_i - eta_{i-1})*F_1(Y; eta_{i-1})
-            F2x_incre = F2x_incre.clone()
-            F2x_incre[0] = 0 # zero out the 1st index in-place
-            F2y_incre = F2y_incre.clone()
-            F2y_incre[0] = 0
-
-            # Calculate F2x for all etas
-            F2x = torch.cumsum(F2x_incre,0)
-            F2y = torch.cumsum(F2y_incre,0)
+            sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order           
 
             """
             assuming that x_0 < x_1 < ... < x_n is sorted, for any x_i the corresponding F2x entry 
@@ -3142,7 +3116,7 @@ class GLSD(ERM):
         nll = 0.
         n = len(minibatches)
 
-        all_x = torch.cat([x for x, y in minibatches])
+        all_x = torch.cat([x for x, _ in minibatches])
         all_logits = self.network(all_x) # all_logits depend on network
         all_logits_idx = 0
 
@@ -3162,9 +3136,9 @@ class GLSD(ERM):
         This means we're looking for a dominated environment (one with smallest u)
         """
         if self.SSD:
-            pi, F1, F2, sorted_eta = dominated_2nd_cdf(-losses) # F1, sorted_eta depend on network
+            pi, sorted_eta = dominated_2nd_cdf(-losses) # sorted_eta depend on network
         else:
-            pi, F1, sorted_eta = dominated_1st_cdf(-losses) # F1, sorted_eta depend on network
+            pi, sorted_eta = dominated_1st_cdf(-losses) # sorted_eta depend on network
 
         update_worst_env_every_steps = self.hparams['update_worst_env_every_steps']
         ministep = self.update_count.item() % update_worst_env_every_steps
@@ -3184,18 +3158,11 @@ class GLSD(ERM):
         
         lambdas = lambdas.detach()
 
-        F1 = (F1 * lambdas.unsqueeze(1)).sum(0)
-        if self.SSD:
-            F2 = (F2 * lambdas.unsqueeze(1)).sum(0)
+        sorted_eta = (sorted_eta * lambdas.unsqueeze(1)).sum(0)
         
         if len(self.buffer) == 0:
-            device = F1.device  # or sorted_eta.device
-            data = {"F1": torch.rand_like(F1, device=device),
-                    "sorted_eta": sorted_eta.clone().to(device),
-            }                      
-            if self.SSD:
-                data["F2"] = torch.rand_like(F1, device=device)
-
+            device = sorted_eta.device  # or sorted_eta.device
+            data = {"sorted_eta": sorted_eta.detach().to(device),}                      
             self.buffer.append(data)
         
         ref = self.buffer.sample(len(sorted_eta))
@@ -3206,13 +3173,9 @@ class GLSD(ERM):
         margin = initial_margin + (final_margin - initial_margin) * (self.update_count / total_steps)
 
         if self.SSD:
-            loss_ssd = xsd_2nd_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"], margin=margin)
-            if self.hparams['glsd_fsd_lambda'] > 0:
-                loss_fsd = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
-            else:
-                loss_fsd = torch.zeros_like(loss_fsd)
+            loss_ssd, loss_fsd = xsd_2nd_cdf(sorted_eta, ref["sorted_eta"], margin=margin)
         else:
-            loss_fsd = xsd_1st_cdf(F1, sorted_eta, ref["F1"], ref["sorted_eta"])
+            loss_fsd = xsd_1st_cdf(sorted_eta, ref["sorted_eta"])
             loss_ssd = torch.zeros_like(loss_fsd)
 
         normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd})
@@ -3224,9 +3187,7 @@ class GLSD(ERM):
         loss.backward(retain_graph=True)
         self.optimizer.step()
 
-        data = {"F1": F1.detach(), "sorted_eta": sorted_eta.clone()}
-        if self.SSD:
-            data["F2"] = F2.detach()
+        data = {"sorted_eta": sorted_eta}
         self.buffer.append(data)
         
         self.update_count += 1
