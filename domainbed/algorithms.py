@@ -3000,7 +3000,7 @@ class GLSD(ERM):
             return y
 
         
-        def calc_F1_loss(sorted_eta, seta_x, F1x, F1y, rel_tau=0.3, get_utility=False):
+        def calc_F1_loss(sorted_eta, seta_x, F1x, F1y, rel_tau=0.3, get_utility=False, beta=20, margin=0.01):
             eps = torch.finfo(F1x.dtype).eps
             eta_values = sorted_eta + eps # [2b,]
             eta_values = eta_values.detach() # From Shicong's implementation: here eta are treated as constants not as coming from model
@@ -3016,12 +3016,12 @@ class GLSD(ERM):
             # Previous code (Dai 2023) suggests relu
             if get_utility:
                 #                         (2b,1)      (1,2b)
-                ux = torch.sum(F.softplus(eta     - (seta_x.unsqueeze(0)), beta=10)*(mu.unsqueeze(1)), dim=0)
+                ux = torch.sum(F.softplus(eta     - (seta_x.unsqueeze(0) - margin), beta=beta)*(mu.unsqueeze(1)), dim=0)
                 #ux = torch.sum(F.relu(eta - (seta_x.unsqueeze(0)))*(mu.unsqueeze(1)), dim=0)
                 return ux
             else:
                 #                          (2b,1)     (1,2b)
-                ex = torch.mean(F.softplus(eta    - seta_x.unsqueeze(0), beta=10), dim=1)
+                ex = torch.mean(F.softplus(eta    - seta_x.unsqueeze(0) - margin, beta=beta), dim=1)
                 #ex = torch.mean(F.relu(eta - seta_x.unsqueeze(0)), dim=1)
                 #loss =(ex*mu).clamp(min=0).sum()
                 loss =(ex*mu).sum()
@@ -3050,7 +3050,7 @@ class GLSD(ERM):
             F1x = F1[0].squeeze() # (2b,)
             F1y = F1[1].squeeze() # (2b,)
             
-            ret_val = calc_F1_loss(sorted_eta, seta_x, F1x, F1y, rel_tau, get_utility)
+            ret_val = calc_F1_loss(sorted_eta, seta_x, F1x, F1y, rel_tau=rel_tau, get_utility=get_utility)
             return ret_val
             
         def xsd_2nd_cdf(seta_x, seta_y, rel_tau=0.3, get_utility=False, margin=0.0, get_F1=False):
@@ -3124,7 +3124,7 @@ class GLSD(ERM):
                 ret_val_F2 = loss  
             
             if get_F1:
-                ret_val_F1 = calc_F1_loss(sorted_eta, seta_x, F1x, F1y, rel_tau, get_utility)
+                ret_val_F1 = calc_F1_loss(sorted_eta, seta_x, F1x, F1y, rel_tau=rel_tau, get_utility=get_utility)
             else:
                 ret_val_F1 = torch.zeros_like(ret_val_F2)
             
