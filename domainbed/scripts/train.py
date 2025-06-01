@@ -285,9 +285,6 @@ if __name__ == "__main__":
 
     algorithm.to(device)
     move_optimizer_to_device(algorithm.optimizer, device)
-    for name, param in algorithm.named_parameters():
-        print(f"{name}: {param.device}")
-
 
     train_minibatches_iterator = zip(*train_loaders)
     uda_minibatches_iterator = zip(*uda_loaders)
