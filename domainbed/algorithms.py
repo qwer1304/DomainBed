@@ -2555,14 +2555,14 @@ class ADRMX(Algorithm):
         return self.network(x)
 
 class LossBalancer:
-    def __init__(self, loss_names, alpha=0.99):
+    def __init__(self, losses, alpha=0.99):
         """
         Args:
-            loss_names (list of str): Names of the losses to track.
+            losses (list of losses): Names of the losses to track w/ inital values or None
             alpha (float): Smoothing factor for exponential moving average.
         """
         self.alpha = alpha
-        self.running_avgs = {name: None for name in loss_names}
+        self.running_avgs = {name: val for name, val in losses}
 
     def update(self, loss_dict):
         """
@@ -2729,7 +2729,7 @@ class GLSD(ERM):
         self.register_buffer('update_count', torch.tensor([0]))
         self.register_buffer('pi', torch.tensor([1]+[0]*(num_domains-1)))
         self.register_buffer('pi_prev', torch.tensor([0]*(num_domains-1)+[1]))
-        self.loss_balancer = LossBalancer(["fsd", "ssd"], alpha=0.99)
+        self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None)], alpha=0.99)
 
         """
         self.optimizer = torch.optim.SGD(
@@ -2759,12 +2759,19 @@ class GLSD(ERM):
         # Dumps the replay buffer and returns the state_dict to add to module's state_dict
         # This function is called when building the module's state_dict().
         # state_dict(): Return a dictionary containing references to the whole state of the module
-        return {"buffer": self.buffer}
+        return {"buffer": self.buffer,
+                "loss_balancer": {"alpha": self.loss_balancer.alpha,
+                                  "running_avgs": self.loss_balancer.running_avgs,
+                }
+       }
+
 
     def set_extra_state(self, state):
         # This function is called from load_state_dict()
         # load_state_dict(state_dict): Copy parameters and buffers from state_dict into this module and its descendants.
         self.buffer = state["buffer"]
+        self.loss_balancer.alpha = state["loss_balancer"]["alpha"]
+        self.loss_balancer.running_avgs = state["loss_balancer"]["running_avgs"]
     
     def update(self, minibatches, unlabeled=None):
     
