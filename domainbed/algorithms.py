@@ -3181,7 +3181,7 @@ class GLSD(ERM):
         sorted_eta = (sorted_eta * lambdas.unsqueeze(1)).sum(0)
         
         # do Szekely decomposition of signed losses sorted_eta
-        a = 1.5
+        a = 0.5
         y = a * torch.randn_like(sorted_eta)
         z = sorted_eta + y # Szekely decomposition
         var_z = torch.var(z)
