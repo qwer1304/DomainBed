@@ -2729,6 +2729,7 @@ class GLSD(ERM):
         self.register_buffer('update_count', torch.tensor([0]))
         self.register_buffer('pi', torch.tensor([1]+[0]*(num_domains-1)))
         self.register_buffer('pi_prev', torch.tensor([0]*(num_domains-1)+[1]))
+        self.register_buffer('margin', torch.tensor([0.2]))
         self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None)], alpha=0.99)
 
         """
@@ -3186,11 +3187,12 @@ class GLSD(ERM):
         
         ref = self.buffer.sample(len(sorted_eta))
         
-        if False:
+        if True:
             final_margin = 0
-            initial_margin = 0.2
-            total_steps = 2500 # FIX ME!
+            initial_margin = self.margin
+            total_steps = self.hparams["n_steps"]
             margin = initial_margin + (final_margin - initial_margin) * min((self.update_count / total_steps), 1.0)
+            self.margin = margin
         else:
             margin = 0.0
 

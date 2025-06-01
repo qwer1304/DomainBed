@@ -267,6 +267,10 @@ if __name__ == "__main__":
     eval_loader_names += ['env{}_uda'.format(i)
         for i in range(len(uda_splits))]
 
+    # Must come before algorithm initialization
+    n_steps = args.steps or dataset.N_STEPS
+    hparams["n_steps"] = n_steps
+
     algorithm_class = algorithms.get_algorithm_class(args.algorithm)
     algorithm = algorithm_class(dataset.input_shape, dataset.num_classes, len(dataset) - len(args.test_envs), hparams)
 
@@ -292,7 +296,6 @@ if __name__ == "__main__":
 
     steps_per_epoch = min([len(env)/hparams['batch_size'] for env,_ in in_splits])
 
-    n_steps = args.steps or dataset.N_STEPS
     checkpoint_freq = args.checkpoint_freq or dataset.CHECKPOINT_FREQ
 
     last_results_keys = None

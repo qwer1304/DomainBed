@@ -39,6 +39,7 @@ def _hparams(algorithm, dataset, random_seed):
     _hparam('resnet_dropout', 0., lambda r: r.choice([0., 0.1, 0.5]))
     _hparam('vit_dropout', 0., lambda r: r.choice([0., 0.1, 0.5]))
     _hparam('class_balanced', False, lambda r: False)
+    _hparam('n_steps', None, lambda r: None) # should be set in train.py after it's been determined
     # TODO: nonlinear classifiers disabled
     _hparam('nonlinear_classifier', False,
             lambda r: bool(r.choice([False, False])))
