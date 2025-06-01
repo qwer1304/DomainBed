@@ -282,7 +282,6 @@ if __name__ == "__main__":
             for k, v in state.items():
                 if isinstance(v, torch.Tensor):
                     state[k] = v.to(device)
-                            
 
     algorithm.to(device)
     move_optimizer_to_device(algorithm.optimizer, device)
