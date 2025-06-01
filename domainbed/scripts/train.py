@@ -271,19 +271,21 @@ if __name__ == "__main__":
     algorithm = algorithm_class(dataset.input_shape, dataset.num_classes, len(dataset) - len(args.test_envs), hparams)
 
     if algorithm_dict is not None:
-        def move_optimizer_to_device(optimizer, device):
-            for state in optimizer.state.values():
-                for k, v in state.items():
-                    if isinstance(v, torch.Tensor):
-                        state[k] = v.to(device)
-                        
         # Model
         algorithm.load_state_dict(algorithm_dict)
-        algorithm.to(device)
 
         # Optimizer
         algorithm.optimizer.load_state_dict(otimizer_dict)
-        move_optimizer_to_device(algorithm.optimizer, device)
+
+    def move_optimizer_to_device(optimizer, device):
+        for state in optimizer.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.to(device)
+                            
+
+    algorithm.to(device)
+    move_optimizer_to_device(algorithm.optimizer, device)
 
     train_minibatches_iterator = zip(*train_loaders)
     uda_minibatches_iterator = zip(*uda_loaders)

@@ -1,6 +1,6 @@
 python -m domainbed.scripts.train\
        --data_dir=./domainbed/data/MNIST/\
-       --algorithm GLSD_FSD\
+       --algorithm GLSD_SSD\
        --dataset ColoredMNIST\
        --test_env 4\
        --checkpoint_freq 1\
