@@ -2991,11 +2991,39 @@ class GLSD(ERM):
 
             return y
 
+        
+        def calc_F1_loss(sorted_eta, seta_x, F1x, F1y, rel_tau=0.3, get_utility=False):
+            eps = torch.finfo(F1x.dtype).eps
+            eta_values = sorted_eta + eps # [2b,]
+            eta_values = eta_values.detach() # From Shicong's implementation: here eta are treated as constants not as coming from model
+
+            delta = F1x - F1y
+            tau = (torch.max(delta) - torch.min(delta))*rel_tau
+            mu = torch.exp((delta - torch.max(delta))/tau)
+            mu = mu/(torch.sum(mu)+eps)
+            mu = mu.detach()
+
+            eta = eta_values.unsqueeze(1) # [2b,1]
+
+            # Previous code (Dai 2023) suggests relu
+            if get_utility:
+                #                         (2b,1)      (1,2b)
+                ux = torch.sum(F.softplus(eta     - (seta_x.unsqueeze(0)), beta=10)*(mu.unsqueeze(1)), dim=0)
+                #ux = torch.sum(F.relu(eta - (seta_x.unsqueeze(0)))*(mu.unsqueeze(1)), dim=0)
+                return ux
+            else:
+                #                          (2b,1)     (1,2b)
+                ex = torch.mean(F.softplus(eta    - seta_x.unsqueeze(0), beta=10), dim=1)
+                #ex = torch.mean(F.relu(eta - seta_x.unsqueeze(0)), dim=1)
+                #loss =(ex*mu).clamp(min=0).sum()
+                loss =(ex*mu).sum()
+                return loss
+       
         def xsd_1st_cdf(seta_x, seta_y, rel_tau=0.3, get_utility=False):
             """First-order stochastic dominance loss.
 
             Args:
-                x, y: sorted eta (utolities) (correspondig to Fk) from two distributions, which we want to maximize.
+                x, y: sorted eta (utilities) (correspondig to Fk) from two distributions, which we want to maximize.
                       x - is the new samples, y - is the reference
                       x - X_{\theta_{t,\bar{t}}, y - X_{\theta_t}
                 rel_tau: Softmax temperature control
@@ -3013,31 +3041,11 @@ class GLSD(ERM):
             
             F1x = F1[0].squeeze() # (2b,)
             F1y = F1[1].squeeze() # (2b,)
-            eps = torch.finfo(F1x.dtype).eps
-            eta_values = sorted_eta + eps # [2b,]
-            eta_values = eta_values.detach() # From Shicong's implementation: here eta are treated as constants not as coming from model
-
-            delta = F1x - F1y
-            tau = (torch.max(delta) - torch.min(delta))*rel_tau
-            mu = torch.exp((delta - torch.max(delta))/tau)
-            mu = mu/(torch.sum(mu)+eps)
-            mu = mu.detach()
-
-            eta = eta_values.unsqueeze(1) # [2b,1]
-
-            # Previous code (Dai 2023) suggests relu
-            if get_utility:
-                ux = torch.sum(F.softplus(eta - (seta_x.unsqueeze(0)), beta=10)*(mu.unsqueeze(1)), dim=0)
-                #ux = torch.sum(F.relu(eta - (seta_x.unsqueeze(0)))*(mu.unsqueeze(1)), dim=0)
-                return ux
-            else:
-                ex = torch.mean(F.softplus(eta - seta_x.unsqueeze(0), beta=10), dim=1)
-                #ex = torch.mean(F.relu(eta - seta_x.unsqueeze(0)), dim=1)
-                #loss =(ex*mu).clamp(min=0).sum()
-                loss =(ex*mu).sum()
-                return loss
-
-        def xsd_2nd_cdf(seta_x, seta_y, rel_tau=0.3, get_utility=False, margin=0.0):
+            
+            ret_val = calc_F1_loss(sorted_eta, seta_x, F1x, F1y, rel_tau, get_utility)
+            return ret_val
+            
+        def xsd_2nd_cdf(seta_x, seta_y, rel_tau=0.3, get_utility=False, margin=0.0, get_F1=False):
             """Second-order stochastic dominance loss. Implements algorithm 2
 
             Args:
@@ -3061,15 +3069,7 @@ class GLSD(ERM):
             F1y = F1[1].squeeze() # (2b,)
             F2x = F2[0].squeeze() # (2b,)
             F2y = F2[1].squeeze() # (2b,)
-            
-            """
-            # Single list of 0's and 1's corresponding to x's and y's
-            is_y = torch.cat([torch.zeros_like(seta_x), torch.ones_like(seta_y)])
-            eta = torch.cat([seta_x, seta_y])
-            idx_sort = torch.argsort(eta) # returns indices of eta that would result in it being sorted
-            sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order 
-            """
-
+                      
             """
             assuming that x_0 < x_1 < ... < x_n is sorted, for any x_i the corresponding F2x entry 
             before the gradient correction line is computed as F_2(x_i) = \frac{1}{n} \sum_{j=0}^{i-1} (x_i - x_j). 
@@ -3106,14 +3106,22 @@ class GLSD(ERM):
                 u2_incre[0] = 0
                 u2 = torch.cumsum(u2_incre[::-1])[::-1]
                 ux = u2[torch.argsort(idx_sort)[:nX]]
-                return ux
+                ret_val_F2 = ux
             else:
                 # Create a loss function (of theta) in such a way that it can be differentiated to obtain the gradients
                 # w.r.t. theta to improve theta. This is done by using Dankin's theorem.
                 # loss = delta*mu, i.e. delta[argmax(delta)]
                 #loss = (delta*mu + margin).clamp(min=0).sum()
                 loss = (delta*mu + margin).sum()
-                return loss    
+                ret_val_F2 = loss  
+            
+            if get_F1:
+                ret_val_F1 = calc_F1_loss(sorted_eta, seta_x, F1x, F1y, rel_tau, get_utility)
+            else:
+                ret_val_F1 = torch.zeros_like(ret_val_F2)
+            
+            return ret_val_F2, ret_val_F1
+
 
         # What are minibatches? Looks like they're minibatch per environment
         penalty_weight = 1.0
@@ -3177,8 +3185,8 @@ class GLSD(ERM):
         margin = initial_margin + (final_margin - initial_margin) * (self.update_count / total_steps)
 
         if self.SSD:
-            loss_ssd = xsd_2nd_cdf(sorted_eta, ref["sorted_eta"], margin=margin)
-            loss_fsd = xsd_1st_cdf(sorted_eta, ref["sorted_eta"])
+            loss_ssd, loss_fsd = xsd_2nd_cdf(sorted_eta, ref["sorted_eta"], margin=margin, 
+                get_F1=self.hparams['glsd_fsd_lambda'] > 0)
         else:
             loss_fsd = xsd_1st_cdf(sorted_eta, ref["sorted_eta"])
             loss_ssd = torch.zeros_like(loss_fsd)
