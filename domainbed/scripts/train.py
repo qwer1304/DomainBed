@@ -171,8 +171,8 @@ if __name__ == "__main__":
         else:
             hparams = hparams_registry.random_hparams(args.algorithm, args.dataset,
                 misc.seed_hash(args.hparams_seed, args.trial_seed))
-        if args.hparams:
-            hparams.update(json.loads(args.hparams))
+    if args.hparams and ((not from_checkpoint) or args.checkpoint_use_current_args):
+        hparams.update(json.loads(args.hparams))
 
     print('HParams:')
     for k, v in sorted(hparams.items()):
