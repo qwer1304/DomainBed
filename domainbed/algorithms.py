@@ -3000,7 +3000,7 @@ class GLSD(ERM):
             return y
 
         
-        def calc_F1_loss(sorted_eta, seta_x, F1x, F1y, rel_tau=0.3, beta=20, margin=0.01, get_utility=False):
+        def calc_F1_loss(sorted_eta, seta_x, F1x, F1y, rel_tau=0.3, beta=10, margin=0.01, get_utility=False):
             eps = torch.finfo(F1x.dtype).eps
             eta_values = sorted_eta + eps # [2b,]
             eta_values = eta_values.detach() # From Shicong's implementation: here eta are treated as constants not as coming from model
