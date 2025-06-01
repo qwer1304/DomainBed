@@ -3209,11 +3209,14 @@ class GLSD(ERM):
             loss_fsd = xsd_1st_cdf(sorted_eta, ref["sorted_eta"])
             loss_ssd = torch.zeros_like(loss_fsd)
 
-        normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd, "var_z": var_z,})
+        if False:
+            normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd, "var_z": var_z,})
 
-        # Combine them with weights
-        loss = self.loss_balancer.weighted_sum(normalized, weights={"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0, 
-                "var_z": self.hparams['glsd_var_lambda']})
+            # Combine them with weights
+            loss = self.loss_balancer.weighted_sum(normalized, weights={"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0, 
+                    "var_z": self.hparams['glsd_var_lambda']})
+        else:
+            loss = loss_fsd*self.hparams['glsd_fsd_lambda'] + loss_ssd*1.0 + var_z*self.hparams['glsd_var_lambda']
 
         self.optimizer.zero_grad()
         loss.backward(retain_graph=True)
@@ -3229,7 +3232,9 @@ class GLSD(ERM):
         if pi_max < 1:
             worst_e_index = -worst_e_index
         # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
-        return {'loss': loss.item(), 'n_loss_FSD': normalized['fsd'].item(), 'n_loss_SSD': normalized['ssd'].item(), 'n_loss_var': normalized['var_z'].item(), 
+        #return {'loss': loss.item(), 'n_loss_FSD': normalized['fsd'].item(), 'n_loss_SSD': normalized['ssd'].item(), 'n_loss_var': normalized['var_z'].item(), 
+        #    'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }               
+        return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(), 'n_loss_var': var_z.item(), 
             'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }               
 
 class GLSD_SSD(GLSD):
