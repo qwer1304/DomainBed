@@ -3179,10 +3179,13 @@ class GLSD(ERM):
         
         ref = self.buffer.sample(len(sorted_eta))
         
-        final_margin = 0
-        initial_margin = 0.2
-        total_steps = 2500 # FIX ME!
-        margin = initial_margin + (final_margin - initial_margin) * (self.update_count / total_steps)
+        if False:
+            final_margin = 0
+            initial_margin = 0.2
+            total_steps = 2500 # FIX ME!
+            margin = initial_margin + (final_margin - initial_margin) * min((self.update_count / total_steps), 1.0)
+        else:
+            margin = 0.0
 
         if self.SSD:
             loss_ssd, loss_fsd = xsd_2nd_cdf(sorted_eta, ref["sorted_eta"], margin=margin, 
