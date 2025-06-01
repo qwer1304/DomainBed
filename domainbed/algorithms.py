@@ -2730,7 +2730,7 @@ class GLSD(ERM):
         self.register_buffer('pi', torch.tensor([1]+[0]*(num_domains-1)))
         self.register_buffer('pi_prev', torch.tensor([0]*(num_domains-1)+[1]))
         self.register_buffer('margin', torch.tensor([0.2]))
-        self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None)], alpha=0.99)
+        self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None), ("var_z",None)], alpha=0.99)
 
         """
         self.optimizer = torch.optim.SGD(
@@ -3180,6 +3180,12 @@ class GLSD(ERM):
 
         sorted_eta = (sorted_eta * lambdas.unsqueeze(1)).sum(0)
         
+        # do Szekely decomposition of signed losses sorted_eta
+        a = 1.5
+        y = a * torch.randn_like(sorted_eta)
+        z = sorted_eta + y # Szekely decomposition
+        var_z = torch.var(z)
+        
         if len(self.buffer) == 0:
             device = sorted_eta.device  # or sorted_eta.device
             data = {"sorted_eta": sorted_eta.detach().to(device),} # assume we're no backproping the error to previous rounds           
@@ -3203,10 +3209,10 @@ class GLSD(ERM):
             loss_fsd = xsd_1st_cdf(sorted_eta, ref["sorted_eta"])
             loss_ssd = torch.zeros_like(loss_fsd)
 
-        normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd})
+        normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd, "var_z": var_z,})
 
         # Combine them with weights
-        loss = self.loss_balancer.weighted_sum(normalized, weights={"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0})
+        loss = self.loss_balancer.weighted_sum(normalized, weights={"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0, "var_z": 2.0})
 
         self.optimizer.zero_grad()
         loss.backward(retain_graph=True)
