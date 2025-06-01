@@ -3185,6 +3185,7 @@ class GLSD(ERM):
         y = a * torch.randn_like(sorted_eta)
         z = sorted_eta + y # Szekely decomposition
         var_z = torch.var(z)
+        var_x = torch.var(sorted_eta)
         
         if len(self.buffer) == 0:
             device = sorted_eta.device  # or sorted_eta.device
@@ -3234,7 +3235,7 @@ class GLSD(ERM):
         # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
         #return {'loss': loss.item(), 'n_loss_FSD': normalized['fsd'].item(), 'n_loss_SSD': normalized['ssd'].item(), 'n_loss_var': normalized['var_z'].item(), 
         #    'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }               
-        return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(), 'n_loss_var': var_z.item(), 
+        return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(), 'var_z': var_z.item(), 'var_x': var_x.item(),
             'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }               
 
 class GLSD_SSD(GLSD):
