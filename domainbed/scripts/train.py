@@ -66,9 +66,9 @@ if __name__ == "__main__":
         start_step = save_dict['start_step']
         optimizer_dict = save_dict['optimizer_dict']
         # Restore RNG states
-        torch.set_rng_state(save_dict['rng_state'])
+        torch.set_rng_state(save_dict['rng_state'].cpu())
         if torch.cuda.is_available():
-            torch.cuda.set_rng_state_all(save_dict['cuda_rng_state'])
+            torch.cuda.set_rng_state_all(save_dict['cuda_rng_state'].cpu())
         np.random.set_state(save_dict['numpy_rng_state'])
         random.setstate(save_dict['python_rng_state'])
         
