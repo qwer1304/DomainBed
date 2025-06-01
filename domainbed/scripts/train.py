@@ -51,7 +51,12 @@ if __name__ == "__main__":
         torch.save(save_dict, checkpoint_file) # Saves an object to a disk file.
         
     def load_checkpoint(filename):
-        save_dict = torch.load(filename, weights_only=False) # Loads an object saved with torch.save() from a file.
+        if torch.cuda.is_available():
+            device = "cuda"
+        else:
+            device = "cpu"
+            
+        save_dict = torch.load(filename, weights_only=False, map_location=device) # Loads an object saved with torch.save() from a file.
         """
         dataset.input_shape = save_dict['model_input_shape']
         dataset.num_classes = save_dict['model_num_classes']
