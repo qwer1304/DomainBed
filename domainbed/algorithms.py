@@ -3204,15 +3204,36 @@ class GLSD(ERM):
             loss_fsd = xsd_1st_cdf(sorted_eta, ref["sorted_eta"])
             loss_ssd = torch.zeros_like(loss_fsd)
 
+        def get_total_grad_norm(model):
+            return torch.sqrt(sum((p.grad**2).sum() for p in model.parameters() if p.grad is not None)).item()
+
         if False:
-            normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd, "var_z": var_z,})
+            normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd, "var_x": var_x,})
 
             # Combine them with weights
             loss = self.loss_balancer.weighted_sum(normalized, weights={"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0, 
-                    "var_z": self.hparams['glsd_var_lambda']})
+                    "var_x": self.hparams['glsd_var_lambda']})
         else:
             loss = loss_fsd*self.hparams['glsd_fsd_lambda'] + loss_ssd*1.0 + var_x*self.hparams['glsd_var_lambda']
 
+        # 1. Compute and backward GFSD loss separately
+        self.optimizer.zero_grad()
+        loss_fsd.backward(retain_graph=True)
+        print("GFSD grad norm:", get_total_grad_norm(model))
+
+        # 2. Compute and backward GSSD loss separately
+        """
+        self.optimizer.zero_grad() 
+        loss_ssd.backward(retain_graph=True)
+        print("GSSD grad norm:", get_total_grad_norm(model))
+        """
+
+        # 3. Compute and backward Var loss separately
+        self.optimizer.zero_grad()
+        var_x.backward(retain_graph=True)
+        print("Var grad norm:", get_total_grad_norm(model))
+
+        # 4. Finally, do the real backward pass on the total loss
         self.optimizer.zero_grad()
         loss.backward(retain_graph=True)
         self.optimizer.step()
@@ -3227,8 +3248,6 @@ class GLSD(ERM):
         if pi_max < 1:
             worst_e_index = -worst_e_index
         # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
-        #return {'loss': loss.item(), 'n_loss_FSD': normalized['fsd'].item(), 'n_loss_SSD': normalized['ssd'].item(), 'n_loss_var': normalized['var_z'].item(), 
-        #    'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }               
         return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(), 'var_x': var_x.item(),
             'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }               
 
