@@ -2735,9 +2735,9 @@ class GLSD(ERM):
         
         self.optimizer = torch.optim.SGD(
             self.network.parameters(),
-            lr=0.001,
-            momentum=0.9,
-            weight_decay=self.hparams['weight_decay']
+            #lr=0.1,
+            #momentum=0.9,
+            #weight_decay=self.hparams['weight_decay']
         )
         
 
