@@ -3216,27 +3216,28 @@ class GLSD(ERM):
         else:
             loss = loss_fsd*self.hparams['glsd_fsd_lambda'] + loss_ssd*1.0 + var_x*self.hparams['glsd_var_lambda']
 
-        # 1. Compute and backward GFSD loss separately
-        self.optimizer.zero_grad()
-        loss_fsd.backward(retain_graph=True)
-        print("GFSD grad norm:", get_total_grad_norm(self))
+        if self.update_count.item() % 100 == 0:
+            # 1. Compute and backward GFSD loss separately
+            self.optimizer.zero_grad()
+            loss_fsd.backward(retain_graph=True)
+            print("GFSD grad norm:", get_total_grad_norm(self))
 
-        # 2. Compute and backward GSSD loss separately
-        """
-        self.optimizer.zero_grad() 
-        loss_ssd.backward(retain_graph=True)
-        print("GSSD grad norm:", get_total_grad_norm(self))
-        """
+            # 2. Compute and backward GSSD loss separately
+            """
+            self.optimizer.zero_grad() 
+            loss_ssd.backward(retain_graph=True)
+            print("GSSD grad norm:", get_total_grad_norm(self))
+            """
 
-        # 3. Compute and backward Var loss separately
-        self.optimizer.zero_grad()
-        var_x.backward(retain_graph=True)
-        print("Var grad norm:", get_total_grad_norm(self))
+            # 3. Compute and backward Var loss separately
+            self.optimizer.zero_grad()
+            var_x.backward(retain_graph=True)
+            print("Var grad norm:", get_total_grad_norm(self))
 
-        # 4. Finally, do the real backward pass on the total loss
-        self.optimizer.zero_grad()
-        loss.backward(retain_graph=True)
-        self.optimizer.step()
+            # 4. Finally, do the real backward pass on the total loss
+            self.optimizer.zero_grad()
+            loss.backward(retain_graph=True)
+            self.optimizer.step()
 
         data = {"sorted_eta": sorted_eta.detach()} # assume we're no backproping the error to previous rounds
         self.buffer.append(data)
