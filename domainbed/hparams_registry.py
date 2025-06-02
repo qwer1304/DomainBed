@@ -192,7 +192,6 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('update_worst_env_every_steps', 10, lambda r: 10)#r.choice([1,4,8,10]))
         _hparam('alpha_div', 2, lambda r: r.choice([1.5, 2, 3]))
         _hparam('glsd_fsd_lambda', 10, lambda r: r.choice([.1,1,2,5,10]))
-        _hparam('glsd_var_lambda', 5, lambda r: r.choice([.1,1,2,5,10,50]))
 
     if algorithm == "ADRMX":
         _hparam('cnt_lambda', 1.0, lambda r: r.choice([1.0]))

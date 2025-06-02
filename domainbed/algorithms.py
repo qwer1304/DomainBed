@@ -2730,7 +2730,7 @@ class GLSD(ERM):
         self.register_buffer('pi', torch.tensor([1]+[0]*(num_domains-1)))
         self.register_buffer('pi_prev', torch.tensor([0]*(num_domains-1)+[1]))
         self.register_buffer('margin', torch.tensor([0.2]))
-        self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None), ("var_z",None)], alpha=0.99)
+        self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None),], alpha=0.99)
 
         """
         self.optimizer = torch.optim.SGD(
@@ -3179,7 +3179,6 @@ class GLSD(ERM):
         lambdas = lambdas.detach()
 
         sorted_eta = (sorted_eta * lambdas.unsqueeze(1)).sum(0)       
-        var_x = torch.var(sorted_eta)
         
         if len(self.buffer) == 0:
             device = sorted_eta.device  # or sorted_eta.device
@@ -3208,31 +3207,12 @@ class GLSD(ERM):
             return torch.sqrt(sum((p.grad**2).sum() for p in model.parameters() if p.grad is not None)).item()
 
         if False:
-            normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd, "var_x": var_x,})
+            normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd,})
 
             # Combine them with weights
-            loss = self.loss_balancer.weighted_sum(normalized, weights={"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0, 
-                    "var_x": self.hparams['glsd_var_lambda']})
+            loss = self.loss_balancer.weighted_sum(normalized, weights={"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0,})
         else:
-            loss = loss_fsd*self.hparams['glsd_fsd_lambda'] + loss_ssd*1.0 + var_x*self.hparams['glsd_var_lambda']
-
-        if self.update_count.item() % 100 == 0:
-            # 1. Compute and backward GFSD loss separately
-            self.optimizer.zero_grad()
-            loss_fsd.backward(retain_graph=True)
-            print("GFSD grad norm:", get_total_grad_norm(self))
-
-            # 2. Compute and backward GSSD loss separately
-            """
-            self.optimizer.zero_grad() 
-            loss_ssd.backward(retain_graph=True)
-            print("GSSD grad norm:", get_total_grad_norm(self))
-            """
-
-            # 3. Compute and backward Var loss separately
-            self.optimizer.zero_grad()
-            var_x.backward(retain_graph=True)
-            print("Var grad norm:", get_total_grad_norm(self))
+            loss = loss_fsd*self.hparams['glsd_fsd_lambda'] + loss_ssd*1.0
 
         # Do the real backward pass on the total loss
         self.optimizer.zero_grad()
@@ -3249,7 +3229,7 @@ class GLSD(ERM):
         if pi_max < 1:
             worst_e_index = -worst_e_index
         # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
-        return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(), 'var_x': var_x.item(),
+        return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(),
             'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }               
 
 class GLSD_SSD(GLSD):
