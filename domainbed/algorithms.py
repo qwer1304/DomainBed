@@ -3234,10 +3234,10 @@ class GLSD(ERM):
             var_x.backward(retain_graph=True)
             print("Var grad norm:", get_total_grad_norm(self))
 
-            # 4. Finally, do the real backward pass on the total loss
-            self.optimizer.zero_grad()
-            loss.backward(retain_graph=True)
-            self.optimizer.step()
+        # Do the real backward pass on the total loss
+        self.optimizer.zero_grad()
+        loss.backward(retain_graph=True)
+        self.optimizer.step()
 
         data = {"sorted_eta": sorted_eta.detach()} # assume we're no backproping the error to previous rounds
         self.buffer.append(data)
