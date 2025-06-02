@@ -3219,19 +3219,19 @@ class GLSD(ERM):
         # 1. Compute and backward GFSD loss separately
         self.optimizer.zero_grad()
         loss_fsd.backward(retain_graph=True)
-        print("GFSD grad norm:", get_total_grad_norm(model))
+        print("GFSD grad norm:", get_total_grad_norm(self))
 
         # 2. Compute and backward GSSD loss separately
         """
         self.optimizer.zero_grad() 
         loss_ssd.backward(retain_graph=True)
-        print("GSSD grad norm:", get_total_grad_norm(model))
+        print("GSSD grad norm:", get_total_grad_norm(self))
         """
 
         # 3. Compute and backward Var loss separately
         self.optimizer.zero_grad()
         var_x.backward(retain_graph=True)
-        print("Var grad norm:", get_total_grad_norm(model))
+        print("Var grad norm:", get_total_grad_norm(self))
 
         # 4. Finally, do the real backward pass on the total loss
         self.optimizer.zero_grad()
