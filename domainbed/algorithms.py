@@ -3193,7 +3193,6 @@ class GLSD(ERM):
             total_steps = self.hparams["n_steps"]
             margin = initial_margin + (final_margin - initial_margin) * min((self.update_count / total_steps), 1.0)
             self.margin = margin
-            print(margin)
         else:
             margin = 0.0
 
