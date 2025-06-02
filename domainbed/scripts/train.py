@@ -9,6 +9,7 @@ import sys
 import time
 import uuid
 import glob
+import copy
 
 
 import numpy as np
@@ -40,9 +41,9 @@ if __name__ == "__main__":
             "model_num_classes": dataset.num_classes,
             "model_num_domains": len(dataset) - len(args.test_envs),
             "model_hparams": hparams,
-            "model_dict": deepcopy(algorithm.state_dict()),
+            "model_dict": copy.deepcopy(algorithm.state_dict()),
             "start_step": start_step,
-            "optimizer_dict": deepcopy(algorithm.optimizer.state_dict()),
+            "optimizer_dict": copy.deepcopy(algorithm.optimizer.state_dict()),
             "rng_state": torch.get_rng_state(),
             "cuda_rng_state": cuda_rng_state,
             "numpy_rng_state": np.random.get_state(),
