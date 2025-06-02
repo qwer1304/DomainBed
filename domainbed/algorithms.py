@@ -2732,14 +2732,14 @@ class GLSD(ERM):
         self.register_buffer('margin', torch.tensor([0.2]))
         self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None),], alpha=0.99)
 
-        """
+        
         self.optimizer = torch.optim.SGD(
             self.network.parameters(),
             lr=0.1,
             momentum=0.9,
             weight_decay=self.hparams['weight_decay']
         )
-        """
+        
 
     """
     module = self
