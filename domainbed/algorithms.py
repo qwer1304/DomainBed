@@ -2732,12 +2732,13 @@ class GLSD(ERM):
         self.register_buffer('margin', torch.tensor([0.2]))
         self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None),], alpha=0.99)
 
-        self.optimizer = torch.optim.SGD(
-            self.network.parameters(),
-            lr=0.001,
-            momentum=0.9,
-            #weight_decay=self.hparams['weight_decay']
-        )
+        if self.hparams["glsd_optimizer"] == "sgd":
+            self.optimizer = torch.optim.SGD(
+                self.network.parameters(),
+                lr=self.hparams["lr"],
+                momentum=0.9,
+                weight_decay=self.hparams['weight_decay']
+            )
 
     """
     module = self
@@ -3215,7 +3216,8 @@ class GLSD(ERM):
         # Do the real backward pass on the total loss
         self.optimizer.zero_grad()
         loss.backward(retain_graph=True)
-        torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=1.0)
+        if self.hparams["glsd_optimizer"] == "sgd":
+            torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=1.0)
         self.optimizer.step()
 
         data = {"sorted_eta": sorted_eta.detach()} # assume we're no backproping the error to previous rounds

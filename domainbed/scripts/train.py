@@ -115,6 +115,8 @@ if __name__ == "__main__":
         help='Filename (including path) of the checkpoint. If not given output_dir is used with the latest checkpoint.')
     parser.add_argument('--checkpoint_use_current_args', action='store_true',    
         help='Use args from this command line instead from those in the checkpoint.')
+    parser.add_argument('--checkpoint_dont_reload_optimizer', action='store_true',    
+        help='Dont reload optimzer state from checkpoint.')
     args = parser.parse_args()
 
     # If we ever want to implement checkpointing, just persist these values
@@ -280,7 +282,8 @@ if __name__ == "__main__":
         algorithm.load_state_dict(algorithm_dict)
 
         # Optimizer
-        algorithm.optimizer.load_state_dict(otimizer_dict)
+        if not args.checkpoint_dont_reload_optimizer:
+            algorithm.optimizer.load_state_dict(otimizer_dict)
 
     def move_optimizer_to_device(optimizer, device):
         for state in optimizer.state.values():
