@@ -3186,7 +3186,8 @@ class GLSD(ERM):
             lambda_max = 1 - (n - 1) * lambda_min
             Lambdas = torch.rand(n-1,K,device=device)
             Lambdas = lambda_min + (lambda_max - lambda_min)*Lambdas # move to [a,b]
-            Lambdas = torch.stack([Lambdas, torch.tensor([1-Lambdas.sum(dim=0,keepdim=True)])],dim=0) # add element to complete affine combination
+            last_row = 1 - Lambdas.sum(dim=0)  # shape: (K,)
+            Lambdas = torch.cat([Lambdas, last_row.unsqueeze(0)], dim=0)  # shape: (n, K)
             Lambdas = Lambdas[torch.stack([torch.randperm(n) for _ in range(K)],dim=1)] # randomize affine combinations across domains
             
         K = self.hparams["glsd_K"]
