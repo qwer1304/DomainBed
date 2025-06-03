@@ -3188,7 +3188,10 @@ class GLSD(ERM):
             Lambdas = lambda_min + (lambda_max - lambda_min)*Lambdas # move to [a,b]
             last_row = 1 - Lambdas.sum(dim=0)  # shape: (K,)
             Lambdas = torch.cat([Lambdas, last_row.unsqueeze(0)], dim=0)  # shape: (n, K)
-            Lambdas = Lambdas[torch.stack([torch.randperm(n) for _ in range(K)],dim=1)] # randomize affine combinations across domains
+            # Lambdas: shape (n, K)
+            perms = torch.stack([torch.randperm(n) for _ in range(K)], dim=1).to(Lambdas.device)  # shape (n, K)
+            # Use gather to permute each column independently
+            Lambdas = torch.gather(Lambdas, 0, perms)
             
         K = self.hparams["glsd_K"]
         lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min)
