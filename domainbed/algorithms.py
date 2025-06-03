@@ -3196,11 +3196,13 @@ class GLSD(ERM):
             return Lambdas
             
         K = self.hparams["glsd_K"]
-        lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min)
+        lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min) # (n,K-1)
         
         lambda_pos = 1 - (n - 1) * lambda_min
+        # (n,)          (n,)
         lambda_worst = (pi * lambda_pos + (1 - pi) * lambda_min).to(device)
-        lambdas = torch.cat([lambdas, lambda_worst],dim=0) # always include the worst affine combination
+        # (n,K)              (n,K-1)    (n,)
+        lambdas = torch.cat([lambdas, lambda_worst.unsqueeze(1)],dim=0) # always include the worst affine combination
         lambdas = lambdas.detach()
 
         # (nb,K)       (n,nb)                     (n,K)
