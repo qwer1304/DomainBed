@@ -2718,8 +2718,7 @@ class GLSD(ERM):
         self.SSD = SSD
         self.hparams = hparams
         capacity = 5*num_domains*hparams['batch_size']
-        #shape = (hparams["glsd_K"],)
-        shape = ()
+        shape = (hparams["glsd_K"],)
         """
         rb = BatchedCircularBuffer(capacity, shape, device=device)
         """
@@ -3212,8 +3211,6 @@ class GLSD(ERM):
         #                       (nb,1,1)                            (1,n,K)
         # (nb,K)       (nb,)                                   (n,K)
         sorted_eta = (sorted_eta.unsqueeze(1).unsqueeze(2) * lambdas.unsqueeze(0)).sum(1)       
-        sorted_eta = sorted_eta.squeeze()
-        print(sorted_eta.size())
         
         if len(self.buffer) == 0:
             data = {"sorted_eta": sorted_eta.detach().to(device),} # assume we're no backproping the error to previous rounds           
@@ -3232,12 +3229,12 @@ class GLSD(ERM):
 
         loss_ssd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
         loss_fsd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
-        for _ in range(K):
+        for i in range(K):
             if self.SSD:
-                l_ssd, l_fsd = xsd_2nd_cdf(sorted_eta, ref["sorted_eta"], margin=margin, 
+                l_ssd, l_fsd = xsd_2nd_cdf(sorted_eta[:,i].squeeze(), ref["sorted_eta"][:,i].squeeze(), margin=margin, 
                     get_F1=self.hparams['glsd_fsd_lambda'] > 0)
             else:
-                l_fsd = xsd_1st_cdf(sorted_eta, ref["sorted_eta"])
+                l_fsd = xsd_1st_cdf(sorted_eta[:,i].squeeze(), ref["sorted_eta"][:,i].squeeze())
                 l_ssd = torch.zeros_like(loss_fsd)
             loss_ssd = loss_ssd + l_ssd
             loss_fsd = loss_fsd + l_fsd
