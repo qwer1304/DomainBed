@@ -3202,7 +3202,7 @@ class GLSD(ERM):
         # (n,)          (n,)
         lambda_worst = (pi * lambda_pos + (1 - pi) * lambda_min).to(device)
         # (n,K)              (n,K-1)    (n,)
-        lambdas = torch.cat([lambdas, lambda_worst.unsqueeze(1)],dim=0) # always include the worst affine combination
+        lambdas = torch.cat([lambdas, lambda_worst.unsqueeze(1)],dim=1) # always include the worst affine combination
         lambdas = lambdas.detach()
 
         # (nb,K)       (n,nb)                     (n,K)
