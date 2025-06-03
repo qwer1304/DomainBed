@@ -3174,7 +3174,7 @@ class GLSD(ERM):
         
         lambda_min = -self.hparams['glsd_gamma'] / np.sqrt(n)
         
-        def generate_samples_from_affine_hull(K, n, lambda_min):
+        def generate_samples_from_affine_hull(K, n, lambda_min, device):
             """Generates samples from semi-bounded affine hull
             Args:
                 K: Number of sets to generate
@@ -3184,19 +3184,22 @@ class GLSD(ERM):
             Returns:
                 A tensor (n,K) of affine coefficients
             """   
-            lambda_max = 1 - (n - 1) * lambda_min
-            Lambdas = torch.rand(n-1,K,device=device)
-            Lambdas = lambda_min + (lambda_max - lambda_min)*Lambdas # move to [a,b]
-            last_row = 1 - Lambdas.sum(dim=0)  # shape: (K,)
-            Lambdas = torch.cat([Lambdas, last_row.unsqueeze(0)], dim=0)  # shape: (n, K)
-            # Lambdas: shape (n, K)
-            perms = torch.stack([torch.randperm(n) for _ in range(K)], dim=1).to(Lambdas.device)  # shape (n, K)
-            # Use gather to permute each column independently
-            Lambdas = torch.gather(Lambdas, 0, perms)
+            if K > 0:
+                lambda_max = 1 - (n - 1) * lambda_min
+                Lambdas = torch.rand(n-1,K,device=device)
+                Lambdas = lambda_min + (lambda_max - lambda_min)*Lambdas # move to [a,b]
+                last_row = 1 - Lambdas.sum(dim=0)  # shape: (K,)
+                Lambdas = torch.cat([Lambdas, last_row.unsqueeze(0)], dim=0)  # shape: (n, K)
+                # Lambdas: shape (n, K)
+                perms = torch.stack([torch.randperm(n) for _ in range(K)], dim=1).to(device)  # shape (n, K)
+                # Use gather to permute each column independently
+                Lambdas = torch.gather(Lambdas, 0, perms)
+            else:
+                Lambdas = torch.empty(n,K,device=device,dtype=torch.float)
             return Lambdas
             
         K = self.hparams["glsd_K"]
-        lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min) # (n,K-1)
+        lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min, device=device) # (n,K-1)
         
         lambda_pos = 1 - (n - 1) * lambda_min
         # (n,)          (n,)
