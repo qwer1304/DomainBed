@@ -3134,11 +3134,11 @@ class GLSD(ERM):
         penalty_weight = 1.0
         nll = 0.
         n = len(minibatches)
-        device = minibatches.device
 
         all_x = torch.cat([x for x, _ in minibatches])
         all_logits = self.network(all_x) # all_logits depend on network
         all_logits_idx = 0
+        device = all_x.device
 
         # calculate per environment nll from logits calculated for inputs from all environments
         losses = []
