@@ -2718,7 +2718,8 @@ class GLSD(ERM):
         self.SSD = SSD
         self.hparams = hparams
         capacity = 5*num_domains*hparams['batch_size']
-        shape = (hparams["glsd_K"],)
+        #shape = (hparams["glsd_K"],)
+        shape = ()
         """
         rb = BatchedCircularBuffer(capacity, shape, device=device)
         """
