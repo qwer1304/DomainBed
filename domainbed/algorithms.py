@@ -3171,6 +3171,7 @@ class GLSD(ERM):
         pi = alpha*self.pi + (1-alpha)*self.pi_prev
         
         pi = pi.detach()
+        print(pi, pi.size())
         
         lambda_min = -self.hparams['glsd_gamma'] / np.sqrt(n)
         
