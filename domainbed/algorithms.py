@@ -3201,10 +3201,18 @@ class GLSD(ERM):
         K = self.hparams["glsd_K"]
         lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min, device=device) # (n,K-1)
         
+        if self.hparams["glsd_dominate_all_domains"]:
+            perm = torch.randperm(n, device=device)
+            one_hot = torch.zeros(n, n, dtype=torch.float32, device=device)
+            one_hot[torch.arange(n, device=device), perm] = 1.0
+            one_hot.requires_grad_(False) # (n,n)
+            # (n,K-1+n)          (n,K-1)   (n,n)
+            lambdas = torch.cat([lambdas, one_hot],dim=1)
+        
         lambda_pos = 1 - (n - 1) * lambda_min
         # (n,)          (n,)
         lambda_worst = (pi * lambda_pos + (1 - pi) * lambda_min).to(device)
-        # (n,K)              (n,K-1)    (n,)
+        # (n,K+(n?))          (n,K-1)    (n,)
         lambdas = torch.cat([lambdas, lambda_worst.unsqueeze(1)],dim=1) # always include the worst affine combination
         lambdas = lambdas.detach()
 

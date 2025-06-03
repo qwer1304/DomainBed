@@ -194,6 +194,7 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('glsd_fsd_lambda', 10, lambda r: r.choice([.1,1,2,5,10]))
         _hparam('glsd_optimizer', "adam", lambda r: "adam")
         _hparam('glsd_K', 10, lambda r: 10)
+        _hparam('glsd_dominate_all_domains', False, lambda r: False)
 
     if algorithm == "ADRMX":
         _hparam('cnt_lambda', 1.0, lambda r: r.choice([1.0]))
