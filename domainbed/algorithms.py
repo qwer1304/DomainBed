@@ -3279,10 +3279,10 @@ class GLSD(ERM):
                         state['exp_avg'].zero_()
                     if 'exp_avg_sq' in state:
                         state['exp_avg_sq'].zero_()
-                group['lr'] = group['lr'] * 0.01
+                group['lr'] = group['lr'] * self.hparams["glsd_after_load_state_lr_factor"]
         elif self.glsd_after_load_state_count == 1:
             for group in self.optimizer.param_groups:
-                group['lr'] = group['lr'] / 0.01
+                group['lr'] = group['lr'] / self.hparams["glsd_after_load_state_lr_factor"]
         self.glsd_after_load_state_count = self.glsd_after_load_state_count-1 if self.glsd_after_load_state_count > 0 else 0
         self.optimizer.step()
 
