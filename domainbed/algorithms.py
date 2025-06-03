@@ -3170,8 +3170,7 @@ class GLSD(ERM):
         alpha = min(ministep/alpha_max,1)
         pi = alpha*self.pi + (1-alpha)*self.pi_prev
         
-        pi = pi.detach()
-        print(pi, pi.size())
+        pi = pi.detach() # (n,)
         
         lambda_min = -self.hparams['glsd_gamma'] / np.sqrt(n)
         
@@ -3214,11 +3213,11 @@ class GLSD(ERM):
         sorted_eta = (sorted_eta.unsqueeze(1).unsqueeze(2) * lambdas.unsqueeze(0)).sum(1)       
         
         if len(self.buffer) == 0:
-            device = sorted_eta.device  # or sorted_eta.device
             data = {"sorted_eta": sorted_eta.detach().to(device),} # assume we're no backproping the error to previous rounds           
             self.buffer.append(data)
         
-        ref = self.buffer.sample(len(sorted_eta))
+        ref = self.buffer.sample(sorted_eta.size()[0])
+        print(ref["sorted_eta"].size())
         
         if True:
             final_margin = 0
