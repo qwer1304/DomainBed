@@ -3134,6 +3134,7 @@ class GLSD(ERM):
         penalty_weight = 1.0
         nll = 0.
         n = len(minibatches)
+        device = minibatches.device
 
         all_x = torch.cat([x for x, _ in minibatches])
         all_logits = self.network(all_x) # all_logits depend on network
@@ -3173,7 +3174,7 @@ class GLSD(ERM):
         
         lambda_min = -self.hparams['glsd_gamma'] / np.sqrt(n)
         
-        def generate_samples_from_affine_hull(K, n, lambda_min, device="cpu"):
+        def generate_samples_from_affine_hull(K, n, lambda_min):
             """Generates samples from semi-bounded affine hull
             Args:
                 K: Number of sets to generate
