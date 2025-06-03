@@ -3225,8 +3225,8 @@ class GLSD(ERM):
         else:
             margin = 0.0
 
-        loss_ssd = torch.tensor([0],device=device,requires_grad=True)
-        loss_fsd = torch.tensor([0],device=device,requires_grad=True)
+        loss_ssd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
+        loss_fsd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
         for _ in range(K):
             if self.SSD:
                 l_ssd, l_fsd = xsd_2nd_cdf(sorted_eta, ref["sorted_eta"], margin=margin, 
