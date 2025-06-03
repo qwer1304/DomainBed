@@ -3198,7 +3198,7 @@ class GLSD(ERM):
         lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min)
         
         lambda_pos = 1 - (n - 1) * lambda_min
-        lambda_worst = pi * lambda_pos + (1 - pi) * lambda_min
+        lambda_worst = (pi * lambda_pos + (1 - pi) * lambda_min).to(device)
         lambdas = torch.cat([lambdas, lambda_worst],dim=0) # always include the worst affine combination
         lambdas = lambdas.detach()
 
