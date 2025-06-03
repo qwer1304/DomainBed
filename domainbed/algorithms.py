@@ -2718,7 +2718,7 @@ class GLSD(ERM):
         self.SSD = SSD
         self.hparams = hparams
         capacity = 5*num_domains*hparams['batch_size']
-        shape = (hparams["glsd_K"],)
+        shape = ((num_domains if hparams["glsd_dominate_all_domains"] else 0) + hparams["glsd_K"],)
         """
         rb = BatchedCircularBuffer(capacity, shape, device=device)
         """
@@ -3206,18 +3206,18 @@ class GLSD(ERM):
             one_hot = torch.zeros(n, n, dtype=torch.float32, device=device)
             one_hot[torch.arange(n, device=device), perm] = 1.0
             one_hot.requires_grad_(False) # (n,n)
-            # (n,K-1+n)          (n,K-1)   (n,n)
+            # (n,K-1)            (n,K-1)   (n,n), K' = K + n
             lambdas = torch.cat([lambdas, one_hot],dim=1)
         
         lambda_pos = 1 - (n - 1) * lambda_min
         # (n,)          (n,)
         lambda_worst = (pi * lambda_pos + (1 - pi) * lambda_min).to(device)
-        # (n,K+(n?))          (n,K-1)    (n,)
-        lambdas = torch.cat([lambdas, lambda_worst.unsqueeze(1)],dim=1) # always include the worst affine combination
+        # (n,K')              (n,K'-1)   (n,)
+        lambdas = torch.cat([lambdas,   lambda_worst.unsqueeze(1)],dim=1) # always include the worst affine combination
         lambdas = lambdas.detach()
 
-        #                       (nb,1,1)                            (1,n,K)
-        # (nb,K)       (nb,)                                   (n,K)
+        #                       (nb,1,1)                            (1,n,K')
+        # (nb,K')       (nb,)                                   (n,K')
         sorted_eta = (sorted_eta.unsqueeze(1).unsqueeze(2) * lambdas.unsqueeze(0)).sum(1)       
         
         if len(self.buffer) == 0:
