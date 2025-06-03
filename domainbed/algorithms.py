@@ -3271,10 +3271,10 @@ class GLSD(ERM):
         if self.hparams["glsd_optimizer"] == "sgd":
             torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=1.0)
         if self.glsd_after_load_state_count == self.hparams["glsd_after_load_state_count"]:
-            for g in optim.param_groups:
+            for g in self.optimizer.param_groups:
                 g['lr'] = g['lr'] * 0.1
         elif self.glsd_after_load_state_count == 1:
-            for g in optim.param_groups:
+            for g in self.optimizer.param_groups:
                 g['lr'] = g['lr'] / 0.1
         self.glsd_after_load_state_count = self.glsd_after_load_state_count-1 if self.glsd_after_load_state_count > 0 else 0
         self.optimizer.step()
