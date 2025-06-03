@@ -3192,13 +3192,13 @@ class GLSD(ERM):
             perms = torch.stack([torch.randperm(n) for _ in range(K)], dim=1).to(Lambdas.device)  # shape (n, K)
             # Use gather to permute each column independently
             Lambdas = torch.gather(Lambdas, 0, perms)
+            return Lambdas
             
         K = self.hparams["glsd_K"]
         lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min)
         
         lambda_pos = 1 - (n - 1) * lambda_min
         lambda_worst = pi * lambda_pos + (1 - pi) * lambda_min
-        print(lambdas, lambda_worst)
         lambdas = torch.cat([lambdas, lambda_worst],dim=0) # always include the worst affine combination
         lambdas = lambdas.detach()
 
