@@ -2718,7 +2718,7 @@ class GLSD(ERM):
         self.SSD = SSD
         self.hparams = hparams
         capacity = 5*num_domains*hparams['batch_size']
-        shape = ()
+        shape = (hparams["glsd_K"],)
         """
         rb = BatchedCircularBuffer(capacity, shape, device=device)
         """
@@ -3171,13 +3171,34 @@ class GLSD(ERM):
         
         pi = pi.detach()
         
-        lambdax = -self.hparams['glsd_gamma'] / np.sqrt(n)
-        lambda_pos = 1 - (n - 1) * lambdax
-        lambdas = pi * lambda_pos + (1 - pi) * lambdax
+        lambda_min = -self.hparams['glsd_gamma'] / np.sqrt(n)
         
+        def generate_samples_from_affine_hull(K, n, lambda_min, device="cpu"):
+            """Generates samples from semi-bounded affine hull
+            Args:
+                K: Number of sets to generate
+                n: Size of each sample (number of domains)
+                lambda_min: minimal lambda, can (and normally will) be negative
+                device: device to put the result on
+            Returns:
+                A tensor (n,K) of affine coefficients
+            """   
+            lambda_max = 1 - (n - 1) * lambda_min
+            Lambdas = torch.rand(n-1,K,device=device)
+            Lambdas = lambda_min + (lambda_max - lambda_min)*Lambdas # move to [a,b]
+            Lambdas = torch.cat([Lambdas, torch.tensor([1-Lambdas.sum(dim=1,keepdim=True)])],dim=0) # add element to complete affine combination
+            Lambdas = Lambdas[torch.stack([torch.randperm(n) for _ in range(K)],dim=1)] # randomize affine combinations across domains
+            
+        K = self.hparams["glsd_K"]
+        lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min)
+        
+        lambda_pos = 1 - (n - 1) * lambda_min
+        lambda_worst = pi * lambda_pos + (1 - pi) * lambda_min
+        lambdas = torch.cat([lambdas, lambda_worst],dim=0) # always include the worst affine combination
         lambdas = lambdas.detach()
 
-        sorted_eta = (sorted_eta * lambdas.unsqueeze(1)).sum(0)       
+        # (nb,K)       (n,nb)                     (n,K)
+        sorted_eta = (sorted_eta.unsqueeze(1) * lambdas.unsqueeze(2)).sum(0)       
         
         if len(self.buffer) == 0:
             device = sorted_eta.device  # or sorted_eta.device
@@ -3195,12 +3216,17 @@ class GLSD(ERM):
         else:
             margin = 0.0
 
-        if self.SSD:
-            loss_ssd, loss_fsd = xsd_2nd_cdf(sorted_eta, ref["sorted_eta"], margin=margin, 
-                get_F1=self.hparams['glsd_fsd_lambda'] > 0)
-        else:
-            loss_fsd = xsd_1st_cdf(sorted_eta, ref["sorted_eta"])
-            loss_ssd = torch.zeros_like(loss_fsd)
+        loss_ssd = torch.tensor([0],device=device,requires_grad=True)
+        loss_fsd = torch.tensor([0],device=device,requires_grad=True)
+        for _ in range(K):
+            if self.SSD:
+                l_ssd, l_fsd = xsd_2nd_cdf(sorted_eta, ref["sorted_eta"], margin=margin, 
+                    get_F1=self.hparams['glsd_fsd_lambda'] > 0)
+            else:
+                l_fsd = xsd_1st_cdf(sorted_eta, ref["sorted_eta"])
+                l_ssd = torch.zeros_like(loss_fsd)
+            loss_ssd += l_ssd
+            loss_fsd += l_fsd
 
         def get_total_grad_norm(model):
             return torch.sqrt(sum((p.grad**2).sum() for p in model.parameters() if p.grad is not None)).item()
