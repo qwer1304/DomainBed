@@ -2739,6 +2739,12 @@ class GLSD(ERM):
                 momentum=0.9,
                 weight_decay=self.hparams['weight_decay']
             )
+        self.after_load_state_count = 0
+
+        def GLSD_load_state_post_hook(module, incompatible_keys):
+            module.glsd_after_load_state_count = module.hparams["glsd_after_load_state_count"]
+
+        self._register_load_state_dict_post_hook(GLSD_load_state_post_hook)
 
     """
     module = self
@@ -2764,7 +2770,6 @@ class GLSD(ERM):
                                   "running_avgs": self.loss_balancer.running_avgs,
                 }
        }
-
 
     def set_extra_state(self, state):
         # This function is called from load_state_dict()
@@ -3265,6 +3270,13 @@ class GLSD(ERM):
         loss.backward(retain_graph=True)
         if self.hparams["glsd_optimizer"] == "sgd":
             torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=1.0)
+        if self.glsd_after_load_state_count == self.hparams["glsd_after_load_state_count"]:
+            for g in optim.param_groups:
+                g['lr'] = g['lr'] * 0.1
+        elif self.glsd_after_load_state_count == 1:
+            for g in optim.param_groups:
+                g['lr'] = g['lr'] / 0.1
+        self.glsd_after_load_state_count = self.glsd_after_load_state_count-1 if self.glsd_after_load_state_count > 0 else 0
         self.optimizer.step()
 
         data = {"sorted_eta": sorted_eta.detach()} # assume we're no backproping the error to previous rounds
