@@ -3274,7 +3274,7 @@ class GLSD(ERM):
             # Zero Adam's internal state
             for group in self.optimizer.param_groups:
                 for p in group['params']:
-                    state = optimizer.state[p]
+                    state = self.optimizer.state[p]
                     if 'exp_avg' in state:
                         state['exp_avg'].zero_()
                     if 'exp_avg_sq' in state:
