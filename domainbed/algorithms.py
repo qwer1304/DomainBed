@@ -3205,8 +3205,9 @@ class GLSD(ERM):
         lambdas = torch.cat([lambdas, lambda_worst.unsqueeze(1)],dim=1) # always include the worst affine combination
         lambdas = lambdas.detach()
 
-        # (nb,K)       (n,nb)                     (n,K)
-        sorted_eta = (sorted_eta.unsqueeze(1) * lambdas.unsqueeze(2)).sum(0)       
+        #                       (nb,1,1)                            (1,n,K)
+        # (nb,K)       (nb,)                                   (n,K)
+        sorted_eta = (sorted_eta.unsqueeze(1).unsqueeze(2) * lambdas.unsqueeze(0)).sum(1)       
         
         if len(self.buffer) == 0:
             device = sorted_eta.device  # or sorted_eta.device
