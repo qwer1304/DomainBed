@@ -3211,13 +3211,14 @@ class GLSD(ERM):
         #                       (nb,1,1)                            (1,n,K)
         # (nb,K)       (nb,)                                   (n,K)
         sorted_eta = (sorted_eta.unsqueeze(1).unsqueeze(2) * lambdas.unsqueeze(0)).sum(1)       
+        sorted_eta = sorted_eta.squeeze()
+        print(sorted_eta.size())
         
         if len(self.buffer) == 0:
             data = {"sorted_eta": sorted_eta.detach().to(device),} # assume we're no backproping the error to previous rounds           
             self.buffer.append(data)
         
         ref = self.buffer.sample(sorted_eta.size()[0])
-        print(ref["sorted_eta"].size())
         
         if True:
             final_margin = 0
