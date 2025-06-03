@@ -2739,7 +2739,7 @@ class GLSD(ERM):
                 momentum=0.9,
                 weight_decay=self.hparams['weight_decay']
             )
-        self.after_load_state_count = 0
+        self.glsd_after_load_state_count = 0
 
         def GLSD_load_state_post_hook(module, incompatible_keys):
             module.glsd_after_load_state_count = module.hparams["glsd_after_load_state_count"]
