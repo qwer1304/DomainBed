@@ -3234,8 +3234,8 @@ class GLSD(ERM):
             else:
                 l_fsd = xsd_1st_cdf(sorted_eta, ref["sorted_eta"])
                 l_ssd = torch.zeros_like(loss_fsd)
-            loss_ssd += l_ssd
-            loss_fsd += l_fsd
+            loss_ssd = loss_ssd + l_ssd
+            loss_fsd = loss_fsd + l_fsd
 
         def get_total_grad_norm(model):
             return torch.sqrt(sum((p.grad**2).sum() for p in model.parameters() if p.grad is not None)).item()
