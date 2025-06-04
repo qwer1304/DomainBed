@@ -3154,155 +3154,165 @@ class GLSD(ERM):
             losses.append(nll) # losses depend on network
         losses = torch.stack(losses) # env x b, Concatenates a sequence of tensors along a new dimension.
 
-        """
-        In classification we want min_theta max_lambda E[loss].
-        For utility-view with u=-loss this gives: 
-            min_theta max_lambda E[-u] = min_theta max_lambda -E[u] = min_theta min_lambda E[u] 
-        This means we're looking for a dominated environment (one with smallest u)
-        """
-        if self.SSD:
-            pi, sorted_eta = dominated_2nd_cdf(-losses) # sorted_eta depend on network
-        else:
-            pi, sorted_eta = dominated_1st_cdf(-losses) # sorted_eta depend on network
-
-        update_worst_env_every_steps = self.hparams['update_worst_env_every_steps']
-        ministep = self.update_count.item() % update_worst_env_every_steps
-        if ministep == 0:
-            self.pi_prev = self.pi
-            self.pi = pi
-        
-        alpha_max = update_worst_env_every_steps / self.hparams['alpha_div']
-        alpha = min(ministep/alpha_max,1)
-        pi = alpha*self.pi + (1-alpha)*self.pi_prev
-        
-        pi = pi.detach() # (n,)
-        
-        lambda_min = -self.hparams['glsd_gamma'] / np.sqrt(n)
-        
-        def generate_samples_from_affine_hull(K, n, lambda_min, device):
-            """Generates samples from semi-bounded affine hull
-            Args:
-                K: Number of sets to generate
-                n: Size of each sample (number of domains)
-                lambda_min: minimal lambda, can (and normally will) be negative
-                device: device to put the result on
-            Returns:
-                A tensor (n,K) of affine coefficients
-            """   
-            if K > 0:
-                lambda_max = 1 - (n - 1) * lambda_min
-                Lambdas = torch.rand(n-1,K,device=device)
-                Lambdas = lambda_min + (lambda_max - lambda_min)*Lambdas # move to [a,b]
-                last_row = 1 - Lambdas.sum(dim=0)  # shape: (K,)
-                Lambdas = torch.cat([Lambdas, last_row.unsqueeze(0)], dim=0)  # shape: (n, K)
-                # Lambdas: shape (n, K)
-                perms = torch.stack([torch.randperm(n) for _ in range(K)], dim=1).to(device)  # shape (n, K)
-                # Use gather to permute each column independently
-                Lambdas = torch.gather(Lambdas, 0, perms)
-            else:
-                Lambdas = torch.empty(n,K,device=device,dtype=torch.float)
-            return Lambdas
-            
-        K = self.hparams["glsd_K"]
-        lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min, device=device) # (n,K-1)
-        
-        if self.hparams["glsd_dominate_all_domains"]:
-            perm = torch.randperm(n, device=device)
-            one_hot = torch.zeros(n, n, dtype=torch.float32, device=device)
-            one_hot[torch.arange(n, device=device), perm] = 1.0
-            one_hot.requires_grad_(False) # (n,n)
-            # (n,K-1)            (n,K-1)   (n,n), K' = K + n
-            lambdas = torch.cat([lambdas, one_hot],dim=1)
-        
-        lambda_pos = 1 - (n - 1) * lambda_min
-        # (n,)          (n,)
-        lambda_worst = (pi * lambda_pos + (1 - pi) * lambda_min).to(device)
-        # (n,K')              (n,K'-1)   (n,)
-        lambdas = torch.cat([lambdas,   lambda_worst.unsqueeze(1)],dim=1) # always include the worst affine combination
-        lambdas = lambdas.detach()
-
-        #                       (nb,1,1)                            (1,n,K')
-        # (nb,K')       (nb,)                                   (n,K')
-        sorted_eta = (sorted_eta.unsqueeze(1).unsqueeze(2) * lambdas.unsqueeze(0)).sum(1)       
-        
-        if len(self.buffer) == 0:
-            data = {"sorted_eta": sorted_eta.detach().to(device),} # assume we're no backproping the error to previous rounds           
-            self.buffer.append(data)
-        
-        ref = self.buffer.sample(sorted_eta.size()[0])
-        
-        if True:
-            final_margin = 0
-            initial_margin = self.margin
-            total_steps = self.hparams["n_steps"]
-            margin = initial_margin + (final_margin - initial_margin) * min((self.update_count / total_steps), 1.0)
-            self.margin = margin
-        else:
-            margin = 0.0
-
-        loss_ssd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
-        loss_fsd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
-        for i in range(K):
-            if self.SSD:
-                l_ssd, l_fsd = xsd_2nd_cdf(sorted_eta[:,i].squeeze(), ref["sorted_eta"][:,i].squeeze(), margin=margin, 
-                    get_F1=self.hparams['glsd_fsd_lambda'] > 0)
-            else:
-                l_fsd = xsd_1st_cdf(sorted_eta[:,i].squeeze(), ref["sorted_eta"][:,i].squeeze())
-                l_ssd = torch.zeros_like(loss_fsd)
-            loss_ssd = loss_ssd + l_ssd
-            loss_fsd = loss_fsd + l_fsd
-        loss_ssd = loss_ssd / K
-        loss_fsd = loss_fsd / K
-
-        def get_total_grad_norm(model):
-            return torch.sqrt(sum((p.grad**2).sum() for p in model.parameters() if p.grad is not None)).item()
-
         if False:
-            normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd,})
-
-            # Combine them with weights
-            loss = self.loss_balancer.weighted_sum(normalized, weights={"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0,})
-        else:
-            loss = loss_fsd*self.hparams['glsd_fsd_lambda'] + loss_ssd*1.0 - nll.mean()*self.hparams['glsd_nll_lambda']
-
-        # Do the real backward pass on the total loss
-        self.optimizer.zero_grad()
-        loss.backward(retain_graph=True)
-        if self.hparams["glsd_optimizer"] == "sgd":
-            torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=1.0)
-        if self.glsd_after_load_state_count == self.hparams["glsd_after_load_state_count"]:
-            if self.hparams["glsd_optimizer"] == "adam":
-                # Reset Adam (like IRM), because it doesn't like the sharp jump in
-                # gradient magnitudes that happens at this step.
-                self.optimizer = torch.optim.Adam(
-                    self.network.parameters(),
-                    lr=self.hparams["lr"], # * self.hparams["glsd_after_load_state_lr_factor"],
-                    weight_decay=self.hparams['weight_decay'])
-        elif self.glsd_after_load_state_count == 1:
             """
-            if self.hparams["glsd_optimizer"] == "adam":
-                # Reset Adam (like IRM), because it doesn't like the sharp jump in
-                # gradient magnitudes that happens at this step.
-                self.optimizer = torch.optim.Adam(
-                    self.network.parameters(),
-                    lr=self.hparams["lr"],
-                    weight_decay=self.hparams['weight_decay'])
+            In classification we want min_theta max_lambda E[loss].
+            For utility-view with u=-loss this gives: 
+                min_theta max_lambda E[-u] = min_theta max_lambda -E[u] = min_theta min_lambda E[u] 
+            This means we're looking for a dominated environment (one with smallest u)
             """
-        self.glsd_after_load_state_count = self.glsd_after_load_state_count-1 if self.glsd_after_load_state_count > 0 else 0
-        self.optimizer.step()
+            if self.SSD:
+                pi, sorted_eta = dominated_2nd_cdf(-losses) # sorted_eta depend on network
+            else:
+                pi, sorted_eta = dominated_1st_cdf(-losses) # sorted_eta depend on network
 
-        data = {"sorted_eta": sorted_eta.detach()} # assume we're no backproping the error to previous rounds
-        self.buffer.append(data)
-        
-        self.update_count += 1
-        
-        pi_max, worst_env = torch.max(pi,dim=0)
-        worst_e_index = worst_env.item()
-        if pi_max < 1:
-            worst_e_index = -worst_e_index
-        # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
-        return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(),
-            'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }               
+            update_worst_env_every_steps = self.hparams['update_worst_env_every_steps']
+            ministep = self.update_count.item() % update_worst_env_every_steps
+            if ministep == 0:
+                self.pi_prev = self.pi
+                self.pi = pi
+
+            alpha_max = update_worst_env_every_steps / self.hparams['alpha_div']
+            alpha = min(ministep/alpha_max,1)
+            pi = alpha*self.pi + (1-alpha)*self.pi_prev
+
+            pi = pi.detach() # (n,)
+
+            lambda_min = -self.hparams['glsd_gamma'] / np.sqrt(n)
+
+            def generate_samples_from_affine_hull(K, n, lambda_min, device):
+                """Generates samples from semi-bounded affine hull
+                Args:
+                    K: Number of sets to generate
+                    n: Size of each sample (number of domains)
+                    lambda_min: minimal lambda, can (and normally will) be negative
+                    device: device to put the result on
+                Returns:
+                    A tensor (n,K) of affine coefficients
+                """   
+                if K > 0:
+                    lambda_max = 1 - (n - 1) * lambda_min
+                    Lambdas = torch.rand(n-1,K,device=device)
+                    Lambdas = lambda_min + (lambda_max - lambda_min)*Lambdas # move to [a,b]
+                    last_row = 1 - Lambdas.sum(dim=0)  # shape: (K,)
+                    Lambdas = torch.cat([Lambdas, last_row.unsqueeze(0)], dim=0)  # shape: (n, K)
+                    # Lambdas: shape (n, K)
+                    perms = torch.stack([torch.randperm(n) for _ in range(K)], dim=1).to(device)  # shape (n, K)
+                    # Use gather to permute each column independently
+                    Lambdas = torch.gather(Lambdas, 0, perms)
+                else:
+                    Lambdas = torch.empty(n,K,device=device,dtype=torch.float)
+                return Lambdas
+
+            K = self.hparams["glsd_K"]
+            lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min, device=device) # (n,K-1)
+
+            if self.hparams["glsd_dominate_all_domains"]:
+                perm = torch.randperm(n, device=device)
+                one_hot = torch.zeros(n, n, dtype=torch.float32, device=device)
+                one_hot[torch.arange(n, device=device), perm] = 1.0
+                one_hot.requires_grad_(False) # (n,n)
+                # (n,K-1)            (n,K-1)   (n,n), K' = K + n
+                lambdas = torch.cat([lambdas, one_hot],dim=1)
+
+            lambda_pos = 1 - (n - 1) * lambda_min
+            # (n,)          (n,)
+            lambda_worst = (pi * lambda_pos + (1 - pi) * lambda_min).to(device)
+            # (n,K')              (n,K'-1)   (n,)
+            lambdas = torch.cat([lambdas,   lambda_worst.unsqueeze(1)],dim=1) # always include the worst affine combination
+            lambdas = lambdas.detach()
+
+            #                       (nb,1,1)                            (1,n,K')
+            # (nb,K')       (nb,)                                   (n,K')
+            sorted_eta = (sorted_eta.unsqueeze(1).unsqueeze(2) * lambdas.unsqueeze(0)).sum(1)       
+
+            if len(self.buffer) == 0:
+                data = {"sorted_eta": sorted_eta.detach().to(device),} # assume we're no backproping the error to previous rounds           
+                self.buffer.append(data)
+
+            ref = self.buffer.sample(sorted_eta.size()[0])
+
+            if True:
+                final_margin = 0
+                initial_margin = self.margin
+                total_steps = self.hparams["n_steps"]
+                margin = initial_margin + (final_margin - initial_margin) * min((self.update_count / total_steps), 1.0)
+                self.margin = margin
+            else:
+                margin = 0.0
+
+            loss_ssd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
+            loss_fsd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
+            for i in range(K):
+                if self.SSD:
+                    l_ssd, l_fsd = xsd_2nd_cdf(sorted_eta[:,i].squeeze(), ref["sorted_eta"][:,i].squeeze(), margin=margin, 
+                        get_F1=self.hparams['glsd_fsd_lambda'] > 0)
+                else:
+                    l_fsd = xsd_1st_cdf(sorted_eta[:,i].squeeze(), ref["sorted_eta"][:,i].squeeze())
+                    l_ssd = torch.zeros_like(loss_fsd)
+                loss_ssd = loss_ssd + l_ssd
+                loss_fsd = loss_fsd + l_fsd
+            loss_ssd = loss_ssd / K
+            loss_fsd = loss_fsd / K
+
+            def get_total_grad_norm(model):
+                return torch.sqrt(sum((p.grad**2).sum() for p in model.parameters() if p.grad is not None)).item()
+
+            if False:
+                normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd,})
+
+                # Combine them with weights
+                loss = self.loss_balancer.weighted_sum(normalized, weights={"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0,})
+            else:
+                loss = loss_fsd*self.hparams['glsd_fsd_lambda'] + loss_ssd*1.0 - nll.mean()*self.hparams['glsd_nll_lambda']
+
+            # Do the real backward pass on the total loss
+            self.optimizer.zero_grad()
+            loss.backward(retain_graph=True)
+            if self.hparams["glsd_optimizer"] == "sgd":
+                torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=1.0)
+            if self.glsd_after_load_state_count == self.hparams["glsd_after_load_state_count"]:
+                if self.hparams["glsd_optimizer"] == "adam":
+                    # Reset Adam (like IRM), because it doesn't like the sharp jump in
+                    # gradient magnitudes that happens at this step.
+                    self.optimizer = torch.optim.Adam(
+                        self.network.parameters(),
+                        lr=self.hparams["lr"], # * self.hparams["glsd_after_load_state_lr_factor"],
+                        weight_decay=self.hparams['weight_decay'])
+            elif self.glsd_after_load_state_count == 1:
+                """
+                if self.hparams["glsd_optimizer"] == "adam":
+                    # Reset Adam (like IRM), because it doesn't like the sharp jump in
+                    # gradient magnitudes that happens at this step.
+                    self.optimizer = torch.optim.Adam(
+                        self.network.parameters(),
+                        lr=self.hparams["lr"],
+                        weight_decay=self.hparams['weight_decay'])
+                """
+            self.glsd_after_load_state_count = self.glsd_after_load_state_count-1 if self.glsd_after_load_state_count > 0 else 0
+            self.optimizer.step()
+
+            data = {"sorted_eta": sorted_eta.detach()} # assume we're no backproping the error to previous rounds
+            self.buffer.append(data)
+
+            self.update_count += 1
+
+            pi_max, worst_env = torch.max(pi,dim=0)
+            worst_e_index = worst_env.item()
+            if pi_max < 1:
+                worst_e_index = -worst_e_index
+            # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
+            return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(),
+                'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }      
+        else:        
+            _, F1, F2 = calculate_Fks(-losses)
+            if self.SSD
+                diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb]
+            else:
+                diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb]
+            penalty = diffs.square().sum()
+            loss = nll.mean()*self.hparams['glsd_nll_lambda'] + penalty
+            return {'loss': loss.item(), 'penalty': penalty.item(), 'nll': nll.mean().item(), }      
 
 class GLSD_SSD(GLSD):
     """GLSD_SSD algorithm """
