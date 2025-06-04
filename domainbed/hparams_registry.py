@@ -198,8 +198,8 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('glsd_after_load_state_count', 5, lambda r: 5)
         _hparam('glsd_after_load_state_lr_factor', 0.1, lambda r: 0.1)
         _hparam('glsd_nll_lambda', 1.0, lambda r: 1.0)
-        _hparam('glsd_penalty_anneal_iters', 500,
-                lambda r: int(10**r.uniform(0, 4)))
+        _hparam('glsd_penalty_anneal_iters', 500, lambda r: int(10**r.uniform(0, 4)))
+        _hparam('glsd_penalty_lambda', 1e1, int(10**r.uniform(-1, 3)))
 
     if algorithm == "ADRMX":
         _hparam('cnt_lambda', 1.0, lambda r: r.choice([1.0]))

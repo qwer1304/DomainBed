@@ -3305,11 +3305,11 @@ class GLSD(ERM):
                 diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb]
             penalty = diffs.square().sum()
             if self.update_count >= self.hparams["glsd_penalty_anneal_iters"]:
-                nll_weight = self.hparams['glsd_nll_lambda']
+                penalty_weight = self.hparams['glsd_penalty_lambda']
             else:
-                nll_weight = 1.0
+                penalty_weight = 1.0
 
-            loss = nll.mean()*nll_weight + penalty
+            loss = nll.mean() + penalty_weight*penalty
 
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
