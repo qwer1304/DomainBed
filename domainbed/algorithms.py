@@ -2808,7 +2808,7 @@ class GLSD(ERM):
             # Compute sigmoid((t_k - x_ij)/tau) for all i, k, j
             # For each domain, for each eta for each example in batch give 1 if x<eta and 0 otherwise
             sigmoid_matrix = torch.sigmoid((sorted_eta_all - sorted_x_i) / tau) # (n, nb, b)
-            sigmoid_matrix = sigmoid_matrix * envs.mask.unsqueeze(2) # leave only etas correspondinng to each domain
+            sigmoid_matrix = sigmoid_matrix * envs_mask.unsqueeze(2) # leave only etas correspondinng to each domain
 
             # Sum over b (within env), average to get soft-CDF, multiply by domain coefficient
             F1_soft = sigmoid_matrix.sum(dim=2)/b*lambdas.unsqueeze(1)  # shape (n, nb)
