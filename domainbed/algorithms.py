@@ -3309,7 +3309,8 @@ class GLSD(ERM):
             else:
                 penalty_weight = 1.0
 
-            loss = nll.mean() + penalty_weight*penalty
+            nll = losses.sum(1).mean()
+            loss = nll + penalty_weight*penalty # sum over batch, mean over envs
 
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
@@ -3333,7 +3334,7 @@ class GLSD(ERM):
             self.glsd_after_load_state_count = self.glsd_after_load_state_count-1 if self.glsd_after_load_state_count > 0 else 0
             self.update_count += 1
 
-            return {'loss': loss.item(), 'penalty': penalty.item(), 'nll': nll.mean().item(), }      
+            return {'loss': loss.item(), 'penalty': penalty.item(), 'nll': nll.item(), }      
 
 class GLSD_SSD(GLSD):
     """GLSD_SSD algorithm """
