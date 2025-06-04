@@ -2803,7 +2803,7 @@ class GLSD(ERM):
             envs = (torch.ones_like(x) * (torch.arange(0,n,device=device).unsqueeze(1))).reshape(-1) # (nb,)
             envs = envs[sorted_idx] # tells which environment each eta came from
             # (n,nb)        (1,nb)                        (n,1)
-            envs_mask = (envs.unsquueze(0) == torch.arange(0,n,device=device).unsqueeze(1)).float()
+            envs_mask = (envs.unsqueeze(0) == torch.arange(0,n,device=device).unsqueeze(1)).float()
 
             # Compute sigmoid((t_k - x_ij)/tau) for all i, k, j
             # For each domain, for each eta for each example in batch give 1 if x<eta and 0 otherwise
