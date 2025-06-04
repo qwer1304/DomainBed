@@ -3312,6 +3312,34 @@ class GLSD(ERM):
                 diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb]
             penalty = diffs.square().sum()
             loss = nll.mean()*self.hparams['glsd_nll_lambda'] + penalty
+
+            # Do the real backward pass on the total loss
+            self.optimizer.zero_grad()
+            loss.backward(retain_graph=True)
+            
+            if self.hparams["glsd_optimizer"] == "sgd":
+                torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=1.0)
+            if self.glsd_after_load_state_count == self.hparams["glsd_after_load_state_count"]:
+                if self.hparams["glsd_optimizer"] == "adam":
+                    # Reset Adam (like IRM), because it doesn't like the sharp jump in
+                    # gradient magnitudes that happens at this step.
+                    self.optimizer = torch.optim.Adam(
+                        self.network.parameters(),
+                        lr=self.hparams["lr"], # * self.hparams["glsd_after_load_state_lr_factor"],
+                        weight_decay=self.hparams['weight_decay'])
+            elif self.glsd_after_load_state_count == 1:
+                """
+                if self.hparams["glsd_optimizer"] == "adam":
+                    # Reset Adam (like IRM), because it doesn't like the sharp jump in
+                    # gradient magnitudes that happens at this step.
+                    self.optimizer = torch.optim.Adam(
+                        self.network.parameters(),
+                        lr=self.hparams["lr"],
+                        weight_decay=self.hparams['weight_decay'])
+                """
+            self.glsd_after_load_state_count = self.glsd_after_load_state_count-1 if self.glsd_after_load_state_count > 0 else 0
+            self.optimizer.step()
+
             return {'loss': loss.item(), 'penalty': penalty.item(), 'nll': nll.mean().item(), }      
 
 class GLSD_SSD(GLSD):
