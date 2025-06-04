@@ -3306,7 +3306,7 @@ class GLSD(ERM):
                 'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }      
         else:        
             _, F1, F2 = calculate_Fks(-losses)
-            if self.SSD
+            if self.SSD:
                 diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb]
             else:
                 diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb]
