@@ -3328,8 +3328,10 @@ class GLSD(ERM):
                             lr=self.hparams["lr"], # * self.hparams["glsd_after_load_state_lr_factor"],
                             weight_decay=self.hparams['weight_decay'])
 
-            self.glsd_after_load_state_count = self.glsd_after_load_state_count-1 if self.glsd_after_load_state_count > 0 else 0
             self.optimizer.step()
+
+            self.glsd_after_load_state_count = self.glsd_after_load_state_count-1 if self.glsd_after_load_state_count > 0 else 0
+            self.update_count += 1
 
             return {'loss': loss.item(), 'penalty': penalty.item(), 'nll': nll.mean().item(), }      
 
