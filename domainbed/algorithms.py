@@ -2783,12 +2783,12 @@ class GLSD(ERM):
         def calculate_Fks(x, tau=1e-2):
             """
             Calculate F1, F2, and etas for x.
-                x: n x samples of n distributions, which we want to maximize.
+                x: (n,samples) of n distributions, which we want to maximize.
                 tau: temperature parameter for smoothness
             Returns:
                 Per environment F1
                 Per environment F2
-                sorted_eta eta for which Fk were computed 
+                tuple (sorted_eta,envs) of eta for which Fk were computed and mapping to which env it came from 
             """    
             device = x.device
             n,b = x.size()
@@ -2802,27 +2802,17 @@ class GLSD(ERM):
             sorted_x_i = sorted_x_flat.unsqueeze(1)                # (n, 1, b)
             envs = (torch.ones_like(x) * (torch.arange(0,n,device=device).unsqueeze(1))).reshape(-1) # (nb,)
             envs = envs[sorted_idx] # tells which environment each eta came from
+            # (n,nb)        (1,nb)                        (n,1)
+            envs_mask = (envs.unsquueze(0) == torch.arange(0,n,device=device).unsqueeze(1)).float()
 
             # Compute sigmoid((t_k - x_ij)/tau) for all i, k, j
-            sigmoid_matrix = torch.sigmoid((sorted_eta_all - sorted_x_i) / tau)  # (n, nb, b)
+            # For each domain, for each eta for each example in batch give 1 if x<eta and 0 otherwise
+            sigmoid_matrix = torch.sigmoid((sorted_eta_all - sorted_x_i) / tau) # (n, nb, b)
+            sigmoid_matrix = sigmoid_matrix * envs.mask.unsqueeze(2) # leave only etas correspondinng to each domain
 
-            # Sum over b (within env), average to get soft-CDF
-            F1_soft = sigmoid_matrix.sum(dim=2)/b  # shape (n, nb)
+            # Sum over b (within env), average to get soft-CDF, multiply by domain coefficient
+            F1_soft = sigmoid_matrix.sum(dim=2)/b*lambdas.unsqueeze(1)  # shape (n, nb)
 
-            """
-            is_y = torch.ones_like(x, device=device)
-            is_y = is_y * torch.arange(1,n+1,device=device).unsqueeze(1)
-            is_y = is_y.reshape(-1) # n*samples
-            eta = x.reshape(-1)
-            idx_sort = torch.argsort(eta) # returns indices of eta that would result in it being sorted
-            sorted_is_y = is_y[idx_sort] # reshuffle is_y to correspond to the sorted-eta order (nb,)
-            sorted_eta = eta[idx_sort] # sort eta
-            # Calculate \hat{F}_1(X) for all eta
-            F1 = torch.zeros(n,n*b,device=device) # n x n*b
-            for i in range(0,n):
-                mask = (sorted_is_y == i+1).to(float)
-                F1[i] = torch.cumsum(mask,0) / b
-            """
             F1 = F1_soft
 
             # Calculate eta_i - eta_{i-1}
@@ -2838,13 +2828,14 @@ class GLSD(ERM):
         def dominating_2nd_cdf(x, tau=1.0):
             """
             Second-order dominating cdf.
-                x: n x samples of n distributions, which we want to maximize.
+                x: (n,samples) of n distributions, which we want to maximize.
             Returns:
                 The index of dominating cdf (negative means it was found heuristically)
                 Per environment F1
                 sorted_eta eta for which Fk were computed 
             """    
             
+            x, lambdas = x
             device = x.device
             n,b = x.size()
             (sorted_eta, _), F1, F2 = calculate_Fks(x)
@@ -2874,22 +2865,21 @@ class GLSD(ERM):
             scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
             # Softmax over dominated scores to get positive weights sum to 1
             pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0
-            print(pi)
                        
             return pi, F1, sorted_eta
 
         def dominated_1st_cdf(x, tau=1.0):
             """
             First-order dominated cdf.
-                x: n x samples of n distributions, which we want to maximize.
+                x: (n,samples) of n distributions, which we want to maximize.
             Returns:
                 The index of dominated cdf (negative means it was found heuristically)
                 sorted_eta eta for which Fk were computed 
             """    
             
+            x, lambdas = x
             device = x.device
             n,b = x.size()
-
             (sorted_eta, _), F1, _ = calculate_Fks(x)
            
             diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, b]
@@ -2921,9 +2911,10 @@ class GLSD(ERM):
         def dominated_2nd_cdf(x, tau=1.0):
             """
             Second-order dominated cdf.
-                x: n x samples of n distributions, which we want to maximize.
+            First-order dominated cdf.
+                x: samples: (n,samples) of n distributions, which we want to maximize.
             Returns:
-                The index of dominated cdf (negative means it was found heuristically)
+                The index of dominated cdf
                 sorted_eta eta for which Fk were computed 
             """    
             
@@ -3073,6 +3064,7 @@ class GLSD(ERM):
                 Loss value to minimize, or the utility function u(x)
             """    
             
+            device = seta_x.device
             nX, nY = len(x), len(y)
             xy = torch.vstack((seta_x,seta_y)) # assumes both are same length
             (sorted_eta, sorted_is_y), F1, F2 = calculate_Fks(xy) # (2b,), (2,nb), (2,nb)
@@ -3154,7 +3146,7 @@ class GLSD(ERM):
             losses.append(nll) # losses depend on network
         losses = torch.stack(losses) # env x b, Concatenates a sequence of tensors along a new dimension.
 
-        if False:
+        if True:
             """
             In classification we want min_theta max_lambda E[loss].
             For utility-view with u=-loss this gives: 
@@ -3222,6 +3214,7 @@ class GLSD(ERM):
             lambdas = torch.cat([lambdas,   lambda_worst.unsqueeze(1)],dim=1) # always include the worst affine combination
             lambdas = lambdas.detach()
 
+            # sorted_eta is product of each eta and its domain's signed probability
             #                       (nb,1,1)                            (1,n,K')
             # (nb,K')       (nb,)                                   (n,K')
             sorted_eta = (sorted_eta.unsqueeze(1).unsqueeze(2) * lambdas.unsqueeze(0)).sum(1)       
