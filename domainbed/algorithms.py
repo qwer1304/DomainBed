@@ -3318,8 +3318,8 @@ class GLSD(ERM):
             if self.hparams["glsd_optimizer"] == "sgd":
                 torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=1.0)
             elif self.hparams["glsd_optimizer"] == "adam":
-                if self.glsd_after_load_state_count == self.hparams["glsd_after_load_state_count"] or 
-                    self.glsd_after_load_state_count == 1 or
+                if self.glsd_after_load_state_count == self.hparams["glsd_after_load_state_count"] or \
+                    self.glsd_after_load_state_count == 1 or \
                     self.update_count == self.hparams["glsd_penalty_anneal_iters"]
                         # Reset Adam (like IRM), because it doesn't like the sharp jump in
                         # gradient magnitudes that happens at this step.
