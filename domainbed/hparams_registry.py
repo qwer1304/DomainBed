@@ -200,6 +200,7 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('glsd_nll_lambda', 1.0, lambda r: 1.0)
         _hparam('glsd_penalty_anneal_iters', 500, lambda r: int(10**r.uniform(0, 4)))
         _hparam('glsd_penalty_lambda', 1e1, lambda r: int(10**r.uniform(-1, 3)))
+        _hparam('glsd_as_regularizer', False, lambda r: False)
 
     if algorithm == "ADRMX":
         _hparam('cnt_lambda', 1.0, lambda r: r.choice([1.0]))

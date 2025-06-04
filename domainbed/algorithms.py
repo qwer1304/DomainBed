@@ -3145,8 +3145,9 @@ class GLSD(ERM):
             nll = F.cross_entropy(logits, y, reduction='none') # nll depends on network
             losses.append(nll) # losses depend on network
         losses = torch.stack(losses) # env x b, Concatenates a sequence of tensors along a new dimension.
+        nll = losses.sum(1).mean() # sum over batch, mean over envs
 
-        if False:
+        if not self.hparams["glsd_as_regularizer"]:
             """
             In classification we want min_theta max_lambda E[loss].
             For utility-view with u=-loss this gives: 
@@ -3264,24 +3265,16 @@ class GLSD(ERM):
             loss.backward(retain_graph=True)
             if self.hparams["glsd_optimizer"] == "sgd":
                 torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=1.0)
-            if self.glsd_after_load_state_count == self.hparams["glsd_after_load_state_count"]:
-                if self.hparams["glsd_optimizer"] == "adam":
-                    # Reset Adam (like IRM), because it doesn't like the sharp jump in
-                    # gradient magnitudes that happens at this step.
-                    self.optimizer = torch.optim.Adam(
-                        self.network.parameters(),
-                        lr=self.hparams["lr"], # * self.hparams["glsd_after_load_state_lr_factor"],
-                        weight_decay=self.hparams['weight_decay'])
-            elif self.glsd_after_load_state_count == 1:
-                """
-                if self.hparams["glsd_optimizer"] == "adam":
-                    # Reset Adam (like IRM), because it doesn't like the sharp jump in
-                    # gradient magnitudes that happens at this step.
-                    self.optimizer = torch.optim.Adam(
-                        self.network.parameters(),
-                        lr=self.hparams["lr"],
-                        weight_decay=self.hparams['weight_decay'])
-                """
+            elif self.hparams["glsd_optimizer"] == "adam":
+                if self.glsd_after_load_state_count == self.hparams["glsd_after_load_state_count"] or \
+                    self.glsd_after_load_state_count == 1:
+                        # Reset Adam (like IRM), because it doesn't like the sharp jump in
+                        # gradient magnitudes that happens at this step.
+                        self.optimizer = torch.optim.Adam(
+                            self.network.parameters(),
+                            lr=self.hparams["lr"], # * self.hparams["glsd_after_load_state_lr_factor"],
+                            weight_decay=self.hparams['weight_decay'])
+
             self.glsd_after_load_state_count = self.glsd_after_load_state_count-1 if self.glsd_after_load_state_count > 0 else 0
             self.optimizer.step()
 
@@ -3309,8 +3302,7 @@ class GLSD(ERM):
             else:
                 penalty_weight = 1.0
 
-            nll = losses.sum(1).mean()
-            loss = nll + penalty_weight*penalty # sum over batch, mean over envs
+            loss = nll + penalty_weight*penalty 
 
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
