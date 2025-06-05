@@ -3272,7 +3272,7 @@ class GLSD(ERM):
             if self.update_count >= self.hparams["glsd_penalty_anneal_iters"]:
                 penalty_weight = -self.hparams['glsd_nll_lambda']
             else:
-                penalty_weight = -1.0
+                penalty_weight = -0.1
 
             weights = {"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0, "nll": penalty_weight,}
             if True:
