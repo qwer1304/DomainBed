@@ -2718,11 +2718,12 @@ class GLSD(ERM):
         self.SSD = SSD
         self.hparams = hparams
         capacity = 5*num_domains*hparams['batch_size']
-        shape = ((num_domains if hparams["glsd_dominate_all_domains"] else 0) + hparams["glsd_K"],)
+        shape_eta = ()
+        shape_envs = ()
         """
         rb = BatchedCircularBuffer(capacity, shape, device=device)
         """
-        spec = {"sorted_eta": (shape, torch.float32)}
+        spec = {"sorted_eta": (shape_eta, torch.float32), "envs": (shape_envs, torch.int)}
             
         rb = DictCircularBuffer(capacity, spec, device=device)
         self.buffer = rb
@@ -2780,39 +2781,46 @@ class GLSD(ERM):
     
     def update(self, minibatches, unlabeled=None):
     
-        def calculate_Fks(x, tau=1e-2):
+        def calculate_Fks(x, lambdas=None, tau=1e-2):
             """
             Calculate F1, F2, and etas for x.
-                x: (n,samples) of n distributions, which we want to maximize.
+                x: (n,samples) of n distributions, which we want to maximize. (n,b)
+                lambdas: (n,weights) or None of per example weights. None means 1/b (n,b)
                 tau: temperature parameter for smoothness
             Returns:
                 Per environment F1
                 Per environment F2
-                tuple (sorted_eta,envs) of eta for which Fk were computed and mapping to which env it came from 
+                tuple (sorted_eta, envs, lambdas) of eta for which Fk were computed, mapping to which env it came from and its weight 
             """    
             device = x.device
             n,b = x.size()
 
-            x_flat = x.view(n, b)                                  # (n, b)
-            sorted_x_flat, _ = torch.sort(x_flat, dim=1)           # (n, b)
+            x_flat = x.view(n, b)                                   # (n, b)
+            sorted_x_flat, sorted_x_idx = torch.sort(x_flat, dim=1) # (n, b)
             # eta: shape (n*b,) = sorted losses (t_k)
-            eta = x.reshape(-1)                                    # (nb,)
-            sorted_eta, sorted_idx = torch.sort(eta)               # (nb,)
-            sorted_eta_all = sorted_eta.unsqueeze(0).unsqueeze(2)  # (1, nb, 1)
-            sorted_x_i = sorted_x_flat.unsqueeze(1)                # (n, 1, b)
+            eta = x.reshape(-1)                                     # (nb,)
+            sorted_eta, sorted_idx = torch.sort(eta)                # (nb,)
+            sorted_eta_all = sorted_eta.unsqueeze(0).unsqueeze(2)   # (1, nb, 1)
+            sorted_x_i = sorted_x_flat.unsqueeze(1)                 # (n, 1, b)
             envs = (torch.ones_like(x) * (torch.arange(0,n,device=device).unsqueeze(1))).reshape(-1) # (nb,)
             envs = envs[sorted_idx] # tells which environment each eta came from
-            # (n,nb)        (1,nb)                        (n,1)
-            envs_mask = (envs.unsqueeze(0) == torch.arange(0,n,device=device).unsqueeze(1)).float()
 
             # Compute sigmoid((t_k - x_ij)/tau) for all i, k, j
             # For each domain, for each eta for each example in batch give 1 if x<eta and 0 otherwise
             sigmoid_matrix = torch.sigmoid((sorted_eta_all - sorted_x_i) / tau) # (n, nb, b)
-            sigmoid_matrix = sigmoid_matrix * envs_mask.unsqueeze(2) # leave only etas correspondinng to each domain
 
             # Sum over b (within env), average to get soft-CDF
-            F1_soft = sigmoid_matrix.sum(dim=2) / b  # shape (n, nb)
-
+            if lambdas is None:
+                F1_soft = sigmoid_matrix.sum(dim=2) / b  # shape (n, nb)
+                lambdas_sorted = torch.ones_like(x) / b
+            else:
+                lambdas_sorted = torch.gather(lambdas, dim=1, index=sorted_x_idx)
+                #             (n,nb,b)                (n,1,b)
+                F1_soft = (sigmoid_matrix * (lambdas_sorted.unsqueeze(1))).sum(dim=2)  # shape (n, nb)
+            
+            lambdas_sorted = lambdas_sorted.reshape(-1) # (nb,)
+            lambdas_sorted_all = lambdas_sorted[sorted_idx]
+                
             F1 = F1_soft
 
             # Calculate eta_i - eta_{i-1}
@@ -2823,7 +2831,7 @@ class GLSD(ERM):
             # Calculate F2 for all etas
             F2 = torch.cumsum(F2_incre,1)
 
-            return (sorted_eta,envs), F1, F2
+            return (sorted_eta, envs, lambdas_sorted_all), F1, F2
 
         def dominating_2nd_cdf(x, tau=1.0):
             """
@@ -2838,7 +2846,7 @@ class GLSD(ERM):
             x, lambdas = x
             device = x.device
             n,b = x.size()
-            (sorted_eta, _), F1, F2 = calculate_Fks(x)
+            (sorted_eta, _, _), F1, F2 = calculate_Fks(x)
            
             diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, b]
             
@@ -2875,12 +2883,13 @@ class GLSD(ERM):
             Returns:
                 The index of dominated cdf (negative means it was found heuristically)
                 sorted_eta eta for which Fk were computed 
+                env which each eta came from
             """    
             
             x, lambdas = x
             device = x.device
             n,b = x.size()
-            (sorted_eta, _), F1, _ = calculate_Fks(x)
+            (sorted_eta, envs, _), F1, _ = calculate_Fks(x)
            
             diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, b]
             
@@ -2906,7 +2915,7 @@ class GLSD(ERM):
             scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
             # Softmax over dominated scores to get positive weights sum to 1
             pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0                     
-            return pi, sorted_eta
+            return pi, sorted_eta, envs
 
         def dominated_2nd_cdf(x, tau=1.0):
             """
@@ -2916,11 +2925,12 @@ class GLSD(ERM):
             Returns:
                 The index of dominated cdf
                 sorted_eta eta for which Fk were computed 
+                envs which each eta came from
             """    
             
             device = x.device
             n,b = x.size()
-            (sorted_eta, _), F1, F2 = calculate_Fks(x)
+            (sorted_eta, envs, _), F1, F2 = calculate_Fks(x)
            
             diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, b]
             
@@ -2947,7 +2957,7 @@ class GLSD(ERM):
             scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
             # Softmax over dominated scores to get positive weights sum to 1
             pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0                      
-            return pi, sorted_eta
+            return pi, sorted_eta, envs
 
         def fill_list(x):
             # Identify nonzero elements
@@ -3022,13 +3032,14 @@ class GLSD(ERM):
                 loss =(ex*mu).sum()
                 return loss
        
-        def xsd_1st_cdf(seta_x, seta_y, rel_tau=0.3, get_utility=False):
+        def xsd_1st_cdf(seta_x, seta_y, lambda_x, lambda_y, rel_tau=0.3, get_utility=False):
             """First-order stochastic dominance loss.
 
             Args:
-                x, y: sorted eta (utilities) (correspondig to Fk) from two distributions, which we want to maximize.
+                seta_ (n,) : sorted eta (utilities) (correspondig to Fk) from two distributions, which we want to maximize.
                       x - is the new samples, y - is the reference
                       x - X_{\theta_{t,\bar{t}}, y - X_{\theta_t}
+                lambda_ (n,) : per-example weight
                 rel_tau: Softmax temperature control
                 get_utility: Return array u(x) instead of a scalar loss
                 Shicong commented that when working with sampling dependent on theta (Algorithm 3),
@@ -3036,25 +3047,28 @@ class GLSD(ERM):
 
             Returns:
                 Loss value to minimize, or the utility function u(x)
+                combined sorted_eta, sorted_lambda
             """    
             
-            nX, nY = len(x), len(y)
+            nX, nY = len(seta_x), len(seta_y)
             xy = torch.vstack((seta_x,seta_y)) # assumes both are same length
-            (sorted_eta, _), F1, _ = calculate_Fks(xy) # (2b,), (2,nb), (2,nb)
+            lambda_xy = torch.vstack((lambda_x,lambda_y)) # assumes both are same length
+            (sorted_eta, envs, sorted_lambda), F1, _ = calculate_Fks(xy, lambda_xy) # (2b,), (2,2b), (2,2b)
             
             F1x = F1[0].squeeze() # (2b,)
             F1y = F1[1].squeeze() # (2b,)
             
             ret_val = calc_F1_loss(sorted_eta, seta_x, F1x, F1y, rel_tau=rel_tau, get_utility=get_utility)
-            return ret_val
+            return ret_val, sorted_eta, envs
             
-        def xsd_2nd_cdf(seta_x, seta_y, rel_tau=0.3, get_utility=False, margin=0.0, get_F1=False):
+        def xsd_2nd_cdf(seta_x, seta_y, lambda_x, lambda_y, rel_tau=0.3, get_utility=False, margin=0.0, get_F1=False):
             """Second-order stochastic dominance loss. Implements algorithm 2
 
             Args:
-                x, y: sorted eta (correspondig to Fk) from two distributions, which we want to maximize.
+                sorted_ (n,) : sorted eta (correspondig to Fk) from two distributions, which we want to maximize.
                       x - is the new samples, y - is the reference
                       x - X_{\theta_{t,\bar{t}}, y - X_{\theta_t}
+                lambda_ (n,) : per-example weight
                 rel_tau: Softmax temperature control
                 get_utility: Return array u(x) instead of a scalar loss
                 Shicong commented that when working with sampling dependent on theta (Algorithm 3),
@@ -3062,12 +3076,15 @@ class GLSD(ERM):
 
             Returns:
                 Loss value to minimize, or the utility function u(x)
+                sorted_eta
+                envs
             """    
             
             device = seta_x.device
-            nX, nY = len(x), len(y)
+            nX, nY = len(seta_x), len(seta_y)
             xy = torch.vstack((seta_x,seta_y)) # assumes both are same length
-            (sorted_eta, sorted_is_y), F1, F2 = calculate_Fks(xy) # (2b,), (2,nb), (2,nb)
+            lambda_xy = torch.vstack((lambda_x,lambda_y)) # assumes both are same length
+            (sorted_eta, sorted_is_y, sorted_lambda), F1, F2 = calculate_Fks(xy, lambda_xy) # (2b,), (2,nb), (2,nb)
             
             F1x = F1[0].squeeze() # (2b,)
             F1y = F1[1].squeeze() # (2b,)
@@ -3124,7 +3141,7 @@ class GLSD(ERM):
             else:
                 ret_val_F1 = torch.zeros_like(ret_val_F2)
             
-            return ret_val_F2, ret_val_F1
+            return ret_val_F2, ret_val_F1, sorted_eta, sorted_is_y
 
 
         # What are minibatches? Looks like they're minibatch per environment
@@ -3155,9 +3172,9 @@ class GLSD(ERM):
             This means we're looking for a dominated environment (one with smallest u)
             """
             if self.SSD:
-                pi, sorted_eta = dominated_2nd_cdf(-losses) # sorted_eta depend on network
+                pi, sorted_eta, envs = dominated_2nd_cdf(-losses) # sorted_eta depend on network (nb,)
             else:
-                pi, sorted_eta = dominated_1st_cdf(-losses) # sorted_eta depend on network
+                pi, sorted_eta, envs = dominated_1st_cdf(-losses) # sorted_eta depend on network (nb,)
 
             update_worst_env_every_steps = self.hparams['update_worst_env_every_steps']
             ministep = self.update_count.item() % update_worst_env_every_steps
@@ -3215,16 +3232,12 @@ class GLSD(ERM):
             lambdas = torch.cat([lambdas,   lambda_worst.unsqueeze(1)],dim=1) # always include the worst affine combination
             lambdas = lambdas.detach()
 
-            # sorted_eta is product of each eta and its domain's signed probability
-            #                       (nb,1,1)                            (1,n,K')
-            # (nb,K')       (nb,)                                   (n,K')
-            sorted_eta = (sorted_eta.unsqueeze(1).unsqueeze(2) * lambdas.unsqueeze(0)).sum(1)       
-
             if len(self.buffer) == 0:
-                data = {"sorted_eta": sorted_eta.detach().to(device),} # assume we're no backproping the error to previous rounds           
+                data = {"sorted_eta": sorted_eta.detach().to(device), "envs": envs} # assume we're no backproping the error to previous rounds           
                 self.buffer.append(data)
 
-            ref = self.buffer.sample(sorted_eta.size()[0])
+            ref = self.buffer.sample(len(sorted_eta))
+            envs_ref = ref["envs"]
 
             if True:
                 final_margin = 0
@@ -3238,11 +3251,15 @@ class GLSD(ERM):
             loss_ssd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
             loss_fsd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
             for i in range(K):
+                lambda_i = lambdas[:,i].squeeze() # (n,)
+                lambda_ii = torch.tensor([lambda_i[int(e.item())] for e in envs], device=device) / sorted_eta.size()[0] # (nb,)
+                lambda_ref = torch.tensor([lambda_i[int(e.item())] for e in envs_ref], device=device) / sorted_eta.size()[0] # (nb,)
                 if self.SSD:
-                    l_ssd, l_fsd = xsd_2nd_cdf(sorted_eta[:,i].squeeze(), ref["sorted_eta"][:,i].squeeze(), margin=margin, 
-                        get_F1=self.hparams['glsd_fsd_lambda'] > 0)
+                    l_ssd, l_fsd, _, _ = xsd_2nd_cdf(sorted_eta, ref["sorted_eta"], \
+                                   lambda_ii, lambda_ref, margin=margin, get_F1=self.hparams['glsd_fsd_lambda'] > 0)
                 else:
-                    l_fsd = xsd_1st_cdf(sorted_eta[:,i].squeeze(), ref["sorted_eta"][:,i].squeeze())
+                    l_fsd, _, _ = xsd_1st_cdf(sorted_eta, ref["sorted_eta"], \
+                                   lambda_ii, lambda_ref)
                     l_ssd = torch.zeros_like(loss_fsd)
                 loss_ssd = loss_ssd + l_ssd
                 loss_fsd = loss_fsd + l_fsd
@@ -3278,7 +3295,7 @@ class GLSD(ERM):
             self.glsd_after_load_state_count = self.glsd_after_load_state_count-1 if self.glsd_after_load_state_count > 0 else 0
             self.optimizer.step()
 
-            data = {"sorted_eta": sorted_eta.detach()} # assume we're no backproping the error to previous rounds
+            data = {"sorted_eta": sorted_eta.detach(), "envs": envs.detach()} # assume we're no backproping the error to previous rounds
             self.buffer.append(data)
 
             self.update_count += 1
