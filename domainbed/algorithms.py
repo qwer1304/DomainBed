@@ -3269,11 +3269,11 @@ class GLSD(ERM):
             def get_total_grad_norm(model):
                 return torch.sqrt(sum((p.grad**2).sum() for p in model.parameters() if p.grad is not None)).item()
 
-            weights = {"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0, "nll": -self.hparams['glsd_nll_lambda'}
+            weights = {"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0, "nll": -self.hparams['glsd_nll_lambda'],}
             if True:
-                normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll})
+                normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll,})
             else:
-                normalized = {"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll}
+                normalized = {"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll,}
             loss = torch.tensor(weights[k] * normalized[k] for k in weights.keys()], device=device, requires_grad=True).sum()
 
             # Do the real backward pass on the total loss
