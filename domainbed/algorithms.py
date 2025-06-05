@@ -3269,7 +3269,12 @@ class GLSD(ERM):
             def get_total_grad_norm(model):
                 return torch.sqrt(sum((p.grad**2).sum() for p in model.parameters() if p.grad is not None)).item()
 
-            weights = {"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0, "nll": -self.hparams['glsd_nll_lambda'],}
+            if self.update_count >= self.hparams["glsd_penalty_anneal_iters"]:
+                penalty_weight = -self.hparams['glsd_nll_lambda']
+            else:
+                penalty_weight = -1.0
+
+            weights = {"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0, "nll": penalty_weight,}
             if True:
                 normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll,})
             else:
@@ -3283,7 +3288,8 @@ class GLSD(ERM):
                 torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=1.0)
             elif self.hparams["glsd_optimizer"] == "adam":
                 if self.glsd_after_load_state_count == self.hparams["glsd_after_load_state_count"] or \
-                    self.glsd_after_load_state_count == 1:
+                   self.glsd_after_load_state_count == 1 or \
+                   self.update_count == self.hparams["glsd_penalty_anneal_iters"]:
                         # Reset Adam (like IRM), because it doesn't like the sharp jump in
                         # gradient magnitudes that happens at this step.
                         self.optimizer = torch.optim.Adam(
