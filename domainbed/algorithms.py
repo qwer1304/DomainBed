@@ -2731,7 +2731,7 @@ class GLSD(ERM):
         self.register_buffer('pi', torch.tensor([1]+[0]*(num_domains-1)))
         self.register_buffer('pi_prev', torch.tensor([0]*(num_domains-1)+[1]))
         self.register_buffer('margin', torch.tensor([0.2]))
-        self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None),], alpha=0.99)
+        self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None), ("nll",None)], alpha=0.99)
 
         if self.hparams["glsd_optimizer"] == "sgd":
             self.optimizer = torch.optim.SGD(
@@ -3269,13 +3269,12 @@ class GLSD(ERM):
             def get_total_grad_norm(model):
                 return torch.sqrt(sum((p.grad**2).sum() for p in model.parameters() if p.grad is not None)).item()
 
-            if False:
-                normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd,})
-
-                # Combine them with weights
-                loss = self.loss_balancer.weighted_sum(normalized, weights={"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0,})
+            weights = {"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0, "nll": -self.hparams['glsd_nll_lambda'}
+            if True:
+                normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll})
             else:
-                loss = loss_fsd*self.hparams['glsd_fsd_lambda'] + loss_ssd*1.0 - nll.mean()*self.hparams['glsd_nll_lambda']
+                normalized = {"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll}
+            loss = torch.tensor(weights[k] * normalized[k] for k in weights.keys()], device=device, requires_grad=True).sum()
 
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
@@ -3306,7 +3305,7 @@ class GLSD(ERM):
                 worst_e_index = -worst_e_index
             # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
             return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(),
-                'nll': nll.mean().item(), 'worst_env': int(worst_e_index), }      
+                'nll': nll.item(), 'worst_env': int(worst_e_index), }      
         else:        
             _, F1, F2 = calculate_Fks(-losses)
             if self.SSD:
