@@ -3274,7 +3274,6 @@ class GLSD(ERM):
                 normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll,})
             else:
                 normalized = {"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll,}
-            print(loss_fsd, loss_ssd, nll)
             loss = torch.stack([weights[k] * normalized[k] for k in weights.keys()], dim=0).sum()
 
             # Do the real backward pass on the total loss
