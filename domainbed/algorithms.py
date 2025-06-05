@@ -3162,7 +3162,7 @@ class GLSD(ERM):
             nll = F.cross_entropy(logits, y, reduction='none') # nll depends on network
             losses.append(nll) # losses depend on network
         losses = torch.stack(losses) # env x b, Concatenates a sequence of tensors along a new dimension.
-        nll = losses.sum(1).mean() # sum over batch, mean over envs
+        nll = losses.sum(1).mean().unsqueeze(0) # sum over batch, mean over envs
 
         if not self.hparams["glsd_as_regularizer"]:
             """
