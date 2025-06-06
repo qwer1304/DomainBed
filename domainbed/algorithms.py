@@ -2639,7 +2639,7 @@ class GradNormLossBalancer:
         weights_sum = raw_weights.sum()
         normed_weights = len(self.task_names) * raw_weights / weights_sum
         normalized_weights = {k: normed_weights[i].detach().to(self.device) \
-                for k, i in self.task_names
+                for k, i in enumerate(self.task_names)
         }
 
         return normalized_weights, gradnorm_loss
