@@ -2572,6 +2572,7 @@ class GradNormLossBalancer:
         self.initial_losses = {}
         self.running_loss_rates = {k: 1.0 for k in self.task_names}  # Initialized to 1.0
         self.smoothing = smoothing
+        self.device = device
 
     def parameters(self):
         # So you can pass these to the optimizer
@@ -2634,7 +2635,7 @@ class GradNormLossBalancer:
 
         # Step 6: Normalize task weights
         weights = torch.stack([self.task_weights[k] for k in self.task_names])
-        normalized_weights = (len(self.task_names) * weights / weights.sum()).detach()
+        normalized_weights = (len(self.task_names) * weights / weights.sum()).detach().to(device)
 
         return normalized_weights, gradnorm_loss
 
