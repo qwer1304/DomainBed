@@ -2601,7 +2601,6 @@ class GradNormLossBalancer:
         # Step 2: Compute gradient norms of each task loss
         grads = []
         for loss in task_losses:
-            # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             self.model.zero_grad()
             loss.backward(retain_graph=True)
             grad_norm = 0.0
@@ -2634,12 +2633,10 @@ class GradNormLossBalancer:
         gradnorm_loss = (weighted_grads - avg_grad * smoothed_rates).abs().sum()
 
         # Step 6: Normalize task weights
-        with torch.no_grad():
-            weight_sum = torch.stack([self.task_weights[k] for k in self.task_names]).sum()
-            for k in self.task_names:
-                self.task_weights[k].data *= len(self.task_names) / weight_sum
+        weights = torch.stack([self.task_weights[k] for k in self.task_names])
+        normalized_weights = (len(self.task_names) * weights / weights.sum()).detach()
 
-        return self.task_weights, gradnorm_loss
+        return normalized_weights, gradnorm_loss
 
     def state_dict(self):
         return {
