@@ -3410,7 +3410,7 @@ class GLSD(ERM):
             }
             # Combine weights
             signed_weighted_losses = {
-                name: loss_signs[name] * loss_weights[name] for name in loss_weights
+                name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
             }
             # Final total loss
             loss = sum(signed_weighted_losses.values())
