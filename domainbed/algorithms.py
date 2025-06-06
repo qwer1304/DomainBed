@@ -2564,7 +2564,7 @@ class GradNormLossBalancer:
         """
         self.model = model
         self.task_weights = {
-            k: torch.nn.Parameter(torch.tensor(v, dtype=torch.float32, requires_grad=True, device=device, smoothing=False))
+            k: torch.nn.Parameter(torch.tensor(v, dtype=torch.float32, requires_grad=True, device=device,))
             for k, v in initial_weights.items()
         }
         self.task_names = list(initial_weights.keys())
