@@ -3425,7 +3425,6 @@ class GLSD(ERM):
             if pi_max < 1:
                 worst_e_index = -worst_e_index
                 
-            print(loss_weights)
             # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
             return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(),
                 'nll': nll.item(), 'worst_env': int(worst_e_index), }      
