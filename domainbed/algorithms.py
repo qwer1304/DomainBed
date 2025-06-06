@@ -3294,7 +3294,9 @@ class GLSD(ERM):
             excess = nll - threshold
             return threshold + (1.0 / sharpness) * torch.log1p(torch.exp(-sharpness * excess))
             
-        nll = soft_cap(losses, 5.0).sum(1).mean().unsqueeze(0) # sum over batch, mean over envs
+        nll = soft_cap(losses, 5.0)
+        print(losses, nll)
+        nll = nll.sum(1).mean().unsqueeze(0) # sum over batch, mean over envs
 
         if not self.hparams["glsd_as_regularizer"]:
             """
