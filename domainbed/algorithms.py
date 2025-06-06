@@ -3293,7 +3293,7 @@ class GLSD(ERM):
             s = torch.sigmoid(-sharpness * (nll - threshold))
             return s * nll + (1 - s) * threshold
             
-        nll = soft_upper_clamp(losses, 5.0)
+        nll = soft_upper_clamp(losses, 2.0)
         nll = nll.sum(1).mean().unsqueeze(0) # sum over batch, mean over envs
 
         if not self.hparams["glsd_as_regularizer"]:
@@ -3400,7 +3400,6 @@ class GLSD(ERM):
 
             def get_total_grad_norm(model):
                 return torch.sqrt(sum((p.grad**2).sum() for p in model.parameters() if p.grad is not None)).item()
-
 
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
