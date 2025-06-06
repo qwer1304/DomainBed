@@ -2555,7 +2555,7 @@ class ADRMX(Algorithm):
         return self.network(x)
 
 class GradNormLossBalancer:
-    def __init__(self, model, initial_weights, alpha=0.12):
+    def __init__(self, model, initial_weights, alpha=0.12, device='cpu'):
         """
         Args:
             model (nn.Module): The model (e.g., ResNet18).
@@ -2564,7 +2564,7 @@ class GradNormLossBalancer:
         """
         self.model = model
         self.task_weights = {
-            k: torch.nn.Parameter(torch.tensor(v, dtype=torch.float32, requires_grad=True))
+            k: torch.nn.Parameter(torch.tensor(v, dtype=torch.float32, requires_grad=True, device=device))
             for k, v in initial_weights.items()
         }
         self.task_names = list(initial_weights.keys())
@@ -2817,7 +2817,7 @@ class GLSD(ERM):
         if SSD:
             initial_weights["ssd"] = 1.0
             
-        self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, alpha=hparams["glsd_gradnorm_alpha"])
+        self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, alpha=hparams["glsd_gradnorm_alpha"], device=device)
         self.gradnorm_optimizer = torch.optim.Adam(self.gradnorm_balancer.parameters(), 
                 hparams["lr"],
                 weight_decay=self.hparams['weight_decay'],
