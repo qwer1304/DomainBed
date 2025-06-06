@@ -2638,7 +2638,7 @@ class GradNormLossBalancer:
         raw_weights = F.softplus(torch.stack([v for v in self.task_weights.values()]))
         weights_sum = raw_weights.sum()
         normed_weights = len(self.task_names) * raw_weights / weights_sum
-        normalized_weights = {k: normed_weights[i]).detach().to(self.device) \
+        normalized_weights = {k: normed_weights[i].detach().to(self.device) \
                 for k, i in self.task_names
         }
 
