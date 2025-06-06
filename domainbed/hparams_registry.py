@@ -196,6 +196,7 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('glsd_dominate_all_domains', False, lambda r: False)
         _hparam('glsd_as_regularizer', False, lambda r: False)
         _hparam('glsd_gradnorm_alpha', 1.2, lambda r: r.uniform(0.1, 3))
+        _hparam('glsd_gradnorm_smoothing', False, lambda r: False)
 
     if algorithm == "ADRMX":
         _hparam('cnt_lambda', 1.0, lambda r: r.choice([1.0]))

@@ -2555,7 +2555,7 @@ class ADRMX(Algorithm):
         return self.network(x)
 
 class GradNormLossBalancer:
-    def __init__(self, model, initial_weights, alpha=0.12, device='cpu'):
+    def __init__(self, model, initial_weights, alpha=1.2, device='cpu', smoothing=False):
         """
         Args:
             model (nn.Module): The model (e.g., ResNet18).
@@ -2564,13 +2564,14 @@ class GradNormLossBalancer:
         """
         self.model = model
         self.task_weights = {
-            k: torch.nn.Parameter(torch.tensor(v, dtype=torch.float32, requires_grad=True, device=device))
+            k: torch.nn.Parameter(torch.tensor(v, dtype=torch.float32, requires_grad=True, device=device, smoothing=False))
             for k, v in initial_weights.items()
         }
         self.task_names = list(initial_weights.keys())
         self.alpha = alpha
         self.initial_losses = {}
         self.running_loss_rates = {k: 1.0 for k in self.task_names}  # Initialized to 1.0
+        self.smoothing = smoothing
 
     def parameters(self):
         # So you can pass these to the optimizer
@@ -2616,14 +2617,18 @@ class GradNormLossBalancer:
 
         # Step 3: Compute inverse training rates
         loss_ratios = torch.stack([losses_dict[k] / self.initial_losses[k] for k in self.task_names])
-        loss_rates = loss_ratios / loss_ratios.mean().detach()
 
-        # Step 4: Update running rates (smoothing)
-        for i, k in enumerate(self.task_names):
-            self.running_loss_rates[k] = (
-                self.alpha * self.running_loss_rates[k] + (1 - self.alpha) * loss_rates[i].item()
-            )
-        smoothed_rates = torch.tensor([self.running_loss_rates[k] for k in self.task_names], device=grads.device)
+        loss_rates = loss_ratios / loss_ratios.mean().detach() 
+        if not self.smoothing:        
+            loss_rates = loss_rates** self.alpha
+            smoothed_rates = loss_rates
+        else:
+            # Step 4: Update running rates (smoothing)
+            for i, k in enumerate(self.task_names):
+                self.running_loss_rates[k] = (
+                    self.alpha * self.running_loss_rates[k] + (1 - self.alpha) * loss_rates[i].item()
+                )
+            smoothed_rates = torch.tensor([self.running_loss_rates[k] for k in self.task_names], device=grads.device)
 
         # Step 5: GradNorm loss
         gradnorm_loss = (weighted_grads - avg_grad * smoothed_rates).abs().sum()
@@ -2656,7 +2661,7 @@ class LossBalancer:
         """
         Args:
             losses (list of losses): Names of the losses to track w/ inital values or None
-            alpha (float): Smoothing factor for exponential moving average.
+            alpha (float): Smoothing factor for exponential moving average
         """
         self.alpha = alpha
         self.running_avgs = {name: val for name, val in losses}
@@ -2817,7 +2822,8 @@ class GLSD(ERM):
         if SSD:
             initial_weights["ssd"] = 1.0
             
-        self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, alpha=hparams["glsd_gradnorm_alpha"], device=device)
+        self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, 
+                alpha=hparams["glsd_gradnorm_alpha"], device=device, smoothing=hparams["glsd_gradnorm_smoothing"])
         self.gradnorm_optimizer = torch.optim.Adam(self.gradnorm_balancer.parameters(), 
                 hparams["lr"],
                 weight_decay=self.hparams['weight_decay'],
