@@ -3289,14 +3289,12 @@ class GLSD(ERM):
             losses.append(nll) # losses depend on network
         losses = torch.stack(losses) # env x b, Concatenates a sequence of tensors along a new dimension.
        
-        def soft_upper_clamp(nll, threshold, sharpness=10.0):
-            """
-            Softly caps the NLL at `threshold`, transitioning smoothly with `sharpness`.
-            """
-            scale = torch.sigmoid(-sharpness * (nll - threshold))
-            return scale * nll + (1 - scale) * threshold
+        def soft_cap(nll, threshold, sharpness=10.0):
+            # This will saturate smoothly at 'threshold' for large nll
+            excess = nll - threshold
+            return threshold + (1.0 / sharpness) * torch.log1p(torch.exp(-sharpness * excess))
             
-        nll = soft_upper_clamp(losses, 5.0).sum(1).mean().unsqueeze(0) # sum over batch, mean over envs
+        nll = soft_cap(losses, 5.0).sum(1).mean().unsqueeze(0) # sum over batch, mean over envs
 
         if not self.hparams["glsd_as_regularizer"]:
             """
