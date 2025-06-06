@@ -3293,7 +3293,7 @@ class GLSD(ERM):
             s = torch.sigmoid(-sharpness * (nll - threshold))
             return s * nll + (1 - s) * threshold
             
-        nll = soft_cap(losses, 5.0)
+        nll = soft_upper_clamp(losses, 5.0)
         print("losses:", losses, "nll:", nll)
         nll = nll.sum(1).mean().unsqueeze(0) # sum over batch, mean over envs
 
