@@ -2554,6 +2554,103 @@ class ADRMX(Algorithm):
     def predict(self, x):
         return self.network(x)
 
+class GradNormLossBalancer:
+    def __init__(self, model, initial_weights, alpha=0.12):
+        """
+        Args:
+            model (nn.Module): The model (e.g., ResNet18).
+            initial_weights (dict): Initial task weights, e.g., {'fsd': 1.0, 'ssd': 1.0, 'nll': 1.0}
+            alpha (float): Moving average smoothing factor for task loss rates.
+        """
+        self.model = model
+        self.task_weights = {
+            k: torch.nn.Parameter(torch.tensor(v, dtype=torch.float32, requires_grad=True))
+            for k, v in initial_weights.items()
+        }
+        self.task_names = list(initial_weights.keys())
+        self.alpha = alpha
+        self.initial_losses = {}
+        self.running_loss_rates = {k: 1.0 for k in self.task_names}  # Initialized to 1.0
+
+    def parameters(self):
+        # So you can pass these to the optimizer
+        return list(self.task_weights.values())
+
+    def _get_shared_params(self):
+        # Use only the final fully connected layer of ResNet18
+        return list(self.model.classifier.parameters())
+
+    def compute_weights_and_loss(self, losses_dict):
+        """
+        Args:
+            losses_dict (dict): Mapping from task name to loss tensor.
+        
+        Returns:
+            dict: weight for each loss.
+            torch.Tensor: gradnorm_loss
+        """
+        task_losses = [losses_dict[k] for k in self.task_names]
+        shared_params = self._get_shared_params()
+
+        # Step 1: Store initial losses if not done
+        for i, name in enumerate(self.task_names):
+            if name not in self.initial_losses:
+                self.initial_losses[name] = task_losses[i].detach()
+
+        # Step 2: Compute gradient norms of each task loss
+        grads = []
+        for loss in task_losses:
+            # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            self.model.zero_grad()
+            loss.backward(retain_graph=True)
+            grad_norm = 0.0
+            for p in shared_params:
+                if p.grad is not None:
+                    grad_norm += (p.grad.norm(2)) ** 2
+            grads.append(grad_norm.sqrt())
+
+        grads = torch.stack(grads)
+        weights = torch.stack([self.task_weights[k] for k in self.task_names])
+        weighted_grads = grads * weights
+        avg_grad = weighted_grads.mean()
+
+        # Step 3: Compute inverse training rates
+        loss_ratios = torch.stack([losses_dict[k] / self.initial_losses[k] for k in self.task_names])
+        loss_rates = loss_ratios / loss_ratios.mean().detach()
+
+        # Step 4: Update running rates (smoothing)
+        for i, k in enumerate(self.task_names):
+            self.running_loss_rates[k] = (
+                self.alpha * self.running_loss_rates[k] + (1 - self.alpha) * loss_rates[i].item()
+            )
+        smoothed_rates = torch.tensor([self.running_loss_rates[k] for k in self.task_names], device=grads.device)
+
+        # Step 5: GradNorm loss
+        gradnorm_loss = (weighted_grads - avg_grad * smoothed_rates).abs().sum()
+
+        # Step 6: Normalize task weights
+        with torch.no_grad():
+            weight_sum = torch.stack([self.task_weights[k] for k in self.task_names]).sum()
+            for k in self.task_names:
+                self.task_weights[k].data *= len(self.task_names) / weight_sum
+
+        return self.task_weights, gradnorm_loss
+
+    def state_dict(self):
+        return {
+            "task_weights": {k: v.detach() for k, v in self.task_weights.items()},
+            "initial_losses": {k: v for k, v in self.initial_losses.items()},
+            "running_loss_rates": self.running_loss_rates,
+        }
+
+    def load_state_dict(self, state_dict):
+        for k, v in state_dict["task_weights"].items():
+            self.task_weights[k] = torch.nn.Parameter(v.clone().requires_grad_())
+        self.initial_losses = {
+            k: v.clone() for k, v in state_dict["initial_losses"].items()
+        }
+        self.running_loss_rates = state_dict["running_loss_rates"]
+        
 class LossBalancer:
     def __init__(self, losses, alpha=0.99):
         """
@@ -2714,6 +2811,17 @@ class GLSD(ERM):
             device = "cuda"
         else:
             device = "cpu"
+        self.device = device
+        
+        initial_weights = {"fsd": 1.0, "nll": 1.0}
+        if SSD:
+            initial_weights["ssd"] = 1.0
+            
+        self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, alpha=hparams["glsd_gradnorm_alpha"])
+        self.gradnorm_optimizer = torch.optim.Adam(self.gradnorm_balancer.parameters(), 
+                hparams["lr"],
+                weight_decay=self.hparams['weight_decay'],
+        )
 
         self.SSD = SSD
         self.hparams = hparams
@@ -2740,6 +2848,13 @@ class GLSD(ERM):
                 momentum=0.9,
                 weight_decay=self.hparams['weight_decay']
             )
+            self.gradnorm_optimizer = torch.optim.SGD(
+                self.gradnorm_balancer.parameters(), 
+                hparams["lr"],
+                momentum=0.9,
+                weight_decay=self.hparams['weight_decay'],
+            )
+
         self.glsd_after_load_state_count = 0
 
         def GLSD_load_state_post_hook(module, incompatible_keys):
@@ -2769,6 +2884,7 @@ class GLSD(ERM):
         return {"buffer": self.buffer,
                 "loss_balancer": {"alpha": self.loss_balancer.alpha,
                                   "running_avgs": self.loss_balancer.running_avgs,
+                "gradnorm_balancer": self.gradnorm_balancer.state_dict(),
                 }
        }
 
@@ -2778,6 +2894,7 @@ class GLSD(ERM):
         self.buffer = state["buffer"]
         self.loss_balancer.alpha = state["loss_balancer"]["alpha"]
         self.loss_balancer.running_avgs = state["loss_balancer"]["running_avgs"]
+        self.gradnorm_balancer = state["gradnorm_balancer"]
     
     def update(self, minibatches, unlabeled=None):
     
@@ -3152,7 +3269,7 @@ class GLSD(ERM):
         all_x = torch.cat([x for x, _ in minibatches])
         all_logits = self.network(all_x) # all_logits depend on network
         all_logits_idx = 0
-        device = all_x.device
+        device = self.device
 
         # calculate per environment nll from logits calculated for inputs from all environments
         losses = []
@@ -3176,7 +3293,7 @@ class GLSD(ERM):
             else:
                 pi, sorted_eta, envs = dominated_1st_cdf(-losses) # sorted_eta depend on network (nb,)
 
-            update_worst_env_every_steps = self.hparams['update_worst_env_every_steps']
+            update_worst_env_every_steps = self.hparams['glsd_update_worst_env_every_steps']
             ministep = self.update_count.item() % update_worst_env_every_steps
             if ministep == 0:
                 self.pi_prev = self.pi
@@ -3188,7 +3305,7 @@ class GLSD(ERM):
 
             pi = pi.detach() # (n,)
 
-            lambda_min = -self.hparams['glsd_gamma'] / np.sqrt(n)
+            lambda_min = -self.hparams['glsd_affine_hull_gamma'] / np.sqrt(n)
 
             def generate_samples_from_affine_hull(K, n, lambda_min, device):
                 """Generates samples from semi-bounded affine hull
@@ -3256,7 +3373,7 @@ class GLSD(ERM):
                 lambda_ref = torch.tensor([lambda_i[int(e.item())] for e in envs_ref], device=device) / sorted_eta.size()[0] # (nb,)
                 if self.SSD:
                     l_ssd, l_fsd, _, _ = xsd_2nd_cdf(sorted_eta, ref["sorted_eta"], \
-                                   lambda_ii, lambda_ref, margin=margin, get_F1=self.hparams['glsd_fsd_lambda'] > 0)
+                                   lambda_ii, lambda_ref, margin=margin, get_F1=True)
                 else:
                     l_fsd, _, _ = xsd_1st_cdf(sorted_eta, ref["sorted_eta"], \
                                    lambda_ii, lambda_ref)
@@ -3269,36 +3386,34 @@ class GLSD(ERM):
             def get_total_grad_norm(model):
                 return torch.sqrt(sum((p.grad**2).sum() for p in model.parameters() if p.grad is not None)).item()
 
-            if self.update_count >= self.hparams["glsd_penalty_anneal_iters"]:
-                penalty_weight = -self.hparams['glsd_nll_lambda']
-            else:
-                penalty_weight = -0.1
-
-            weights = {"fsd": self.hparams['glsd_fsd_lambda'], "ssd": 1.0, "nll": penalty_weight,}
-            if True:
-                normalized = self.loss_balancer.update({"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll,})
-            else:
-                normalized = {"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll,}
-            loss = torch.stack([weights[k] * normalized[k] for k in weights.keys()], dim=0).sum()
 
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
-            loss.backward(retain_graph=True)
-            if self.hparams["glsd_optimizer"] == "sgd":
-                torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=1.0)
-            elif self.hparams["glsd_optimizer"] == "adam":
-                if self.glsd_after_load_state_count == self.hparams["glsd_after_load_state_count"] or \
-                   self.glsd_after_load_state_count == 1 or \
-                   self.update_count == self.hparams["glsd_penalty_anneal_iters"]:
-                        # Reset Adam (like IRM), because it doesn't like the sharp jump in
-                        # gradient magnitudes that happens at this step.
-                        self.optimizer = torch.optim.Adam(
-                            self.network.parameters(),
-                            lr=self.hparams["lr"], # * self.hparams["glsd_after_load_state_lr_factor"],
-                            weight_decay=self.hparams['weight_decay'])
+            self.gradnorm_optimizer.zero_grad()
 
-            self.glsd_after_load_state_count = self.glsd_after_load_state_count-1 if self.glsd_after_load_state_count > 0 else 0
+            # Combine with GradNorm
+            losses = {"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll}
+            loss_weights, loss_gradnorm = self.gradnorm_balancer.compute_weights_and_loss(losses)
+
+            # Sign for each task
+            loss_signs = {
+                "fsd": 1.0,
+                "ssd": 1.0,
+                "nll": -1.0   # this makes NLL adversarial
+            }
+            # Combine weights
+            signed_weighted_losses = {
+                name: loss_signs[name] * loss_weights[name] for name in loss_weights
+            }
+            # Final total loss
+            loss = sum(signed_weighted_losses.values())
+
+            loss.backward(retain_graph=True)
+            loss_gradnorm.backward()
+            
+            # Now update both optimizers
             self.optimizer.step()
+            self.gradnorm_optimizer.step()
 
             data = {"sorted_eta": sorted_eta.detach(), "envs": envs.detach()} # assume we're no backproping the error to previous rounds
             self.buffer.append(data)
@@ -3309,10 +3424,13 @@ class GLSD(ERM):
             worst_e_index = worst_env.item()
             if pi_max < 1:
                 worst_e_index = -worst_e_index
+                
+            print(loss_weights)
             # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
             return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(),
                 'nll': nll.item(), 'worst_env': int(worst_e_index), }      
         else:        
+            # FIX THIS FOR GRADNORM !!!!!!!!!!!!!!!!!!!!
             _, F1, F2 = calculate_Fks(-losses)
             if self.SSD:
                 diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb]
