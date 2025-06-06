@@ -117,6 +117,8 @@ if __name__ == "__main__":
         help='Use args from this command line instead from those in the checkpoint.')
     parser.add_argument('--checkpoint_dont_reload_optimizer', action='store_true',    
         help='Dont reload optimzer state from checkpoint.')
+    parser.add_argument('--colwidth', type=int', default=12,    
+        help='Column width of the print row.')
     args = parser.parse_args()
 
     # If we ever want to implement checkpointing, just persist these values
@@ -336,10 +338,10 @@ if __name__ == "__main__":
 
             results_keys = sorted(results.keys())
             if results_keys != last_results_keys:
-                misc.print_row(results_keys, colwidth=12)
+                misc.print_row(results_keys, colwidth=args.colwidth)
                 last_results_keys = results_keys
             misc.print_row([results[key] for key in results_keys],
-                colwidth=12)
+                colwidth=args.colwidth)
 
             results.update({
                 'hparams': hparams,
