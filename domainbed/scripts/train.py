@@ -117,7 +117,7 @@ if __name__ == "__main__":
         help='Use args from this command line instead from those in the checkpoint.')
     parser.add_argument('--checkpoint_dont_reload_optimizer', action='store_true',    
         help='Dont reload optimzer state from checkpoint.')
-    parser.add_argument('--colwidth', type=int', default=12,    
+    parser.add_argument('--colwidth', type=int, default=12,    
         help='Column width of the print row.')
     args = parser.parse_args()
 
