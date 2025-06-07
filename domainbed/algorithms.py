@@ -3420,7 +3420,7 @@ class GLSD(ERM):
                 name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
             }
             # Final total loss
-            loss = sum(signed_weighted_losses.values()) total_loss + self.hparams["glsd_nll_lambda"] * F.relu(nll - 80)
+            loss = sum(signed_weighted_losses.values()) + self.hparams["glsd_nll_lambda"] * F.relu(nll - 80)
 
 
             loss.backward(retain_graph=True)
