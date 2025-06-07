@@ -3421,7 +3421,7 @@ class GLSD(ERM):
             }
             # Final total loss
             nll_relu = F.relu(nll - self.hparams["glsd_nll_threshold_global"])
-            print(nll.item(), elf.hparams["glsd_nll_threshold_global"], nll_relu.item())
+            print(nll.item(), self.hparams["glsd_nll_threshold_global"], nll_relu.item())
             loss = sum(signed_weighted_losses.values()) + self.hparams["glsd_nll_lambda"] * nll_relu
 
 
