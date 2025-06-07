@@ -3420,7 +3420,8 @@ class GLSD(ERM):
                 name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
             }
             # Final total loss
-            loss = sum(signed_weighted_losses.values()) + self.hparams["glsd_nll_lambda"] * F.relu(nll - self.hparams["glsd_nll_threshold_global"])
+            nll_relu = F.relu(nll - self.hparams["glsd_nll_threshold_global"])
+            loss = sum(signed_weighted_losses.values()) + self.hparams["glsd_nll_lambda"] * nll_relu
 
 
             loss.backward(retain_graph=True)
@@ -3442,7 +3443,7 @@ class GLSD(ERM):
             
             scalar_loss_weights = {'w_'+k: v.item() for k, v in loss_weights.items()}
             # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
-            return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(),
+            return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(), "nll_relu": nll_relu, 
                 'nll': nll.item(), 'worst_env': int(worst_e_index), **scalar_loss_weights, }      
         else:        
             # FIX THIS FOR GRADNORM !!!!!!!!!!!!!!!!!!!!
