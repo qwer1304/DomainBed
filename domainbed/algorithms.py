@@ -3289,11 +3289,11 @@ class GLSD(ERM):
             losses.append(nll) # losses depend on network
         losses = torch.stack(losses) # env x b, Concatenates a sequence of tensors along a new dimension.
        
-        def soft_upper_clamp(nll, threshold, sharpness=4.0):  # slope ~1
+        def soft_upper_clamp(nll, threshold, sharpness=10.0):  # slope ~1
             s = torch.sigmoid(-sharpness * (nll - threshold))
             return s * nll + (1 - s) * threshold
             
-        nll = soft_upper_clamp(losses, 2.0)
+        nll = soft_upper_clamp(losses, self.hparams["glsd_nll_threshold"])
         nll = nll.sum(1).mean().unsqueeze(0) # sum over batch, mean over envs
 
         if not self.hparams["glsd_as_regularizer"]:
@@ -3420,7 +3420,8 @@ class GLSD(ERM):
                 name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
             }
             # Final total loss
-            loss = sum(signed_weighted_losses.values())
+            loss = sum(signed_weighted_losses.values()) total_loss + self.hparams["glsd_nll_lambda"] * F.relu(nll - 80)
+
 
             loss.backward(retain_graph=True)
             loss_gradnorm.backward()
