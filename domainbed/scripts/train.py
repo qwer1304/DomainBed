@@ -119,6 +119,8 @@ if __name__ == "__main__":
         help='Dont reload optimzer state from checkpoint.')
     parser.add_argument('--colwidth', type=int, default=12,    
         help='Column width of the print row.')
+    parser.add_argument('--print_results_of_last_step', action='store_true',    
+        help='Print the last result instead of averaging over all steps from the last print.')
     args = parser.parse_args()
 
     # If we ever want to implement checkpointing, just persist these values
@@ -327,7 +329,10 @@ if __name__ == "__main__":
             }
 
             for key, val in checkpoint_vals.items():
-                results[key] = np.mean(val)
+                if args.print_results_of_last_step:
+                    results[key] = val[-1]
+                else:
+                    results[key] = np.mean(val)
 
             evals = zip(eval_loader_names, eval_loaders, eval_weights)
             for name, loader, weights in evals:
