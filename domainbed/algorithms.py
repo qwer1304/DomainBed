@@ -3293,7 +3293,7 @@ class GLSD(ERM):
             s = torch.sigmoid(-sharpness * (nll - threshold))
             return s * nll + (1 - s) * threshold
             
-        nll = soft_upper_clamp(losses, self.hparams["glsd_nll_threshold"])
+        nll = soft_upper_clamp(losses, self.hparams["glsd_nll_threshold_sample"])
         nll = nll.sum(1).mean().unsqueeze(0) # sum over batch, mean over envs
 
         if not self.hparams["glsd_as_regularizer"]:
@@ -3420,7 +3420,7 @@ class GLSD(ERM):
                 name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
             }
             # Final total loss
-            loss = sum(signed_weighted_losses.values()) + self.hparams["glsd_nll_lambda"] * F.relu(nll - 80)
+            loss = sum(signed_weighted_losses.values()) + self.hparams["glsd_nll_lambda"] * F.relu(nll - self.hparams["glsd_nll_threshold_global"])
 
 
             loss.backward(retain_graph=True)
