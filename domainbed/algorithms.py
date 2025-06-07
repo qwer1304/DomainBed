@@ -3443,7 +3443,7 @@ class GLSD(ERM):
             
             scalar_loss_weights = {'w_'+k: v.item() for k, v in loss_weights.items()}
             # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
-            return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(), "nll_relu": nll_relu, 
+            return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(), "nll_relu": nll_relu.item(), 
                 'nll': nll.item(), 'worst_env': int(worst_e_index), **scalar_loss_weights, }      
         else:        
             # FIX THIS FOR GRADNORM !!!!!!!!!!!!!!!!!!!!
