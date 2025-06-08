@@ -3517,8 +3517,8 @@ class GLSD(ERM):
 
             # Sign for each task
             loss_signs = {"penalty": 1.0, "nll": 1.0, }
+            losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze()}
             if self.update_count > 10:
-                losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze()}
                 loss_weights, loss_gradnorm = self.gradnorm_balancer.compute_weights_and_loss(losses)
 
                 # Combine weights
