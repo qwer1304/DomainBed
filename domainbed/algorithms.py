@@ -2886,11 +2886,15 @@ class GLSD(ERM):
             device = "cpu"
         self.device = device
         
-        initial_weights = {"fsd": 1.0, "nll": 1.0}
-        if SSD:
-            initial_weights["ssd"] = 1.0
-            
+        if not hparams["glsd_as_regularizer"]:
+            initial_weights = {"fsd": 1.0, "nll": 1.0}
+            if SSD:
+                initial_weights["ssd"] = 1.0
+        else:
+            initial_weights = {"penalty": 1.0, "nll": 1.0, }
+
         self.SSD = SSD
+
         self.hparams = hparams
         capacity = 5*num_domains*hparams['batch_size']
         shape_eta = ()
@@ -3478,7 +3482,7 @@ class GLSD(ERM):
             nll_relu = F.relu(nll - self.hparams["glsd_nll_threshold_global"])
             loss = (
                 sum(signed_weighted_losses.values())
-                + self.hparams["glsd_nll_lambda"] * nll_relu
+                + self.hparams["glsd_nll_lambda"] * nll_relu # this term does not go through gradnorm
                 + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
             )
 
@@ -3502,43 +3506,41 @@ class GLSD(ERM):
             return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(),
                 'nll': nll.item(), 'worst_env': int(worst_e_index), **scalar_loss_weights, }      
         else:        
-            # FIX THIS FOR GRADNORM !!!!!!!!!!!!!!!!!!!!
             _, F1, F2 = calculate_Fks(-losses)
             if self.SSD:
                 diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb]
             else:
                 diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb]
             penalty = diffs.square().sum()
-            if self.update_count >= self.hparams["glsd_penalty_anneal_iters"]:
-                penalty_weight = self.hparams['glsd_penalty_lambda']
-            else:
-                penalty_weight = 1.0
 
-            loss = nll + penalty_weight*penalty 
+            losses = {"nll": nll, "penalty": penalty}
+            loss_weights, loss_gradnorm = self.gradnorm_balancer.compute_weights_and_loss(losses)
+
+            # Sign for each task
+            loss_signs = {
+                "penalty": 1.0,
+                "nll": 1.0
+            }
+            # Combine weights
+            signed_weighted_losses = {
+                name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
+            }
+            # Final total loss
+            loss = (
+                sum(signed_weighted_losses.values())
+                + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
+            )
 
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
             loss.backward(retain_graph=True)
             
-            if self.hparams["glsd_optimizer"] == "sgd":
-                torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=1.0)
-            elif self.hparams["glsd_optimizer"] == "adam":
-                if self.glsd_after_load_state_count == self.hparams["glsd_after_load_state_count"] or \
-                    self.glsd_after_load_state_count == 1 or \
-                    self.update_count == self.hparams["glsd_penalty_anneal_iters"]:
-                        # Reset Adam (like IRM), because it doesn't like the sharp jump in
-                        # gradient magnitudes that happens at this step.
-                        self.optimizer = torch.optim.Adam(
-                            self.network.parameters(),
-                            lr=self.hparams["lr"], # * self.hparams["glsd_after_load_state_lr_factor"],
-                            weight_decay=self.hparams['weight_decay'])
-
             self.optimizer.step()
 
-            self.glsd_after_load_state_count = self.glsd_after_load_state_count-1 if self.glsd_after_load_state_count > 0 else 0
             self.update_count += 1
 
-            return {'loss': loss.item(), 'penalty': penalty.item(), 'nll': nll.item(), }      
+            scalar_loss_weights = {'w_'+k: v.item() for k, v in loss_weights.items()}
+            return {'loss': loss.item(), 'penalty': penalty.item(), 'nll': nll.item(), **scalar_loss_weights, }      
 
 class GLSD_SSD(GLSD):
     """GLSD_SSD algorithm """
