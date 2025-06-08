@@ -3513,6 +3513,7 @@ class GLSD(ERM):
                 diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb]
             penalty = diffs.square().sum()
 
+            print(nll, penalty)
             losses = {"nll": nll, "penalty": penalty}
             loss_weights, loss_gradnorm = self.gradnorm_balancer.compute_weights_and_loss(losses)
 
