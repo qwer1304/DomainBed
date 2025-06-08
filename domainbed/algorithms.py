@@ -3518,8 +3518,6 @@ class GLSD(ERM):
             losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze()}
             loss_weights, loss_gradnorm = self.gradnorm_balancer.compute_weights_and_loss(losses)
             
-            print(f"GradNorm loss: {loss_gradnorm.item():.4f}")
-            
             # Sign for each task
             loss_signs = {
                 "penalty": 1.0,
