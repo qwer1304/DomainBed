@@ -2638,9 +2638,6 @@ class GradNormLossBalancer:
         # Step 6: Normalize task weights
         
         raw_weights = F.softplus(torch.stack([v for v in self.task_weights.values()]))
-        print("Raw task weights:", raw_weights.tolist())
-        print("Weighted grads:", weighted_grads.tolist())
-
         weights_sum = raw_weights.sum()
         normed_weights = len(self.task_names) * raw_weights / weights_sum
         normalized_weights = {k: normed_weights[i].detach().to(self.device) \
@@ -2891,13 +2888,6 @@ class GLSD(ERM):
             device = "cpu"
         self.device = device
         
-        if not hparams["glsd_as_regularizer"]:
-            initial_weights = {"fsd": 1.0, "nll": 1.0}
-            if SSD:
-                initial_weights["ssd"] = 1.0
-        else:
-            initial_weights = {"penalty": 1.0, "nll": 1.0, }
-
         self.SSD = SSD
 
         self.hparams = hparams
@@ -2916,6 +2906,13 @@ class GLSD(ERM):
         self.register_buffer('pi_prev', torch.tensor([0]*(num_domains-1)+[1]))
         self.register_buffer('margin', torch.tensor([0.2]))
         self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None), ("nll",None)], alpha=0.99)
+        if not hparams["glsd_as_regularizer"]:
+            initial_weights = {"fsd": 1.0, "nll": 1.0}
+            if SSD:
+                initial_weights["ssd"] = 1.0
+        else:
+            initial_weights = {"penalty": 10.0, "nll": 1.0, }
+        
         self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, 
                 alpha=hparams["glsd_gradnorm_alpha"], device=device, smoothing=hparams["glsd_gradnorm_smoothing"])
 
