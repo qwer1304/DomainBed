@@ -2845,8 +2845,7 @@ class CombinedOptimizer:
         self.gradnorm_optimizer = base_optimizer_cls(gradnorm_params, *gradnorm_args, **gradnorm_kwargs)
 
     def backward(self, **kwargs):
-        self.model_optimizer.backward(**kwargs)
-        self.gradnorm_optimizer.backward(**kwargs)
+        pass
 
     def zero_grad(self):
         self.model_optimizer.zero_grad()
