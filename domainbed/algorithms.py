@@ -2616,7 +2616,6 @@ class GradNormLossBalancer:
         avg_grad = weighted_grads.mean()
 
         # Step 3: Compute inverse training rates
-        print(losses_dict, self.initial_losses, self.task_names)
         loss_ratios = torch.stack([losses_dict[k] / self.initial_losses[k] for k in self.task_names])
 
         loss_rates = loss_ratios / loss_ratios.mean().detach() 
@@ -3514,7 +3513,7 @@ class GLSD(ERM):
                 diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb]
             penalty = diffs.square().sum()
 
-            losses = {"nll": nll, "penalty": penalty}
+            losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze()}
             loss_weights, loss_gradnorm = self.gradnorm_balancer.compute_weights_and_loss(losses)
 
             # Sign for each task
