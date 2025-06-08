@@ -290,10 +290,8 @@ if __name__ == "__main__":
             algorithm.optimizer.load_state_dict(otimizer_dict)
 
     def move_optimizer_to_device(optimizer, device):
-        for state in optimizer.state.values():
-            for k, v in state.items():
-                if isinstance(v, torch.Tensor):
-                    state[k] = v.to(device)
+        if hasattr(optimizer, 'move_to_device') and callable(optimizer.move_to_device):
+            optimizer.move_to_device(device)
 
     algorithm.to(device)
     move_optimizer_to_device(algorithm.optimizer, device)

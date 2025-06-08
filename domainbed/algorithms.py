@@ -2810,6 +2810,72 @@ class DictCircularBuffer:
     def __len__(self):
         return self.size
         
+class CombinedOptimizer:
+    def __init__(
+        self,
+        model_params,
+        gradnorm_params,
+        base_optimizer_cls=torch.optim.Adam,
+        *args,
+        model_args=None,
+        gradnorm_args=None,
+        model_kwargs=None,
+        gradnorm_kwargs=None,
+        **kwargs
+    ):
+        """
+        Args:
+            model_params: Parameters of the model (e.g., model.parameters()).
+            gradnorm_params: Parameters of GradNorm (e.g., gradnorm_weights.values()).
+            base_optimizer_cls: torch optimizer class (default: Adam).
+            *args: Positional args shared by both optimizers (e.g., lr).
+            model_args: Positional args specifically for the model optimizer.
+            gradnorm_args: Positional args specifically for the GradNorm optimizer.
+            model_kwargs: Keyword args specifically for model optimizer.
+            gradnorm_kwargs: Keyword args specifically for GradNorm optimizer.
+            **kwargs: Shared keyword args (if model_kwargs/gradnorm_kwargs not provided).
+        """
+        model_args = model_args or args
+        gradnorm_args = gradnorm_args or args
+
+        model_kwargs = model_kwargs or kwargs
+        gradnorm_kwargs = gradnorm_kwargs or kwargs
+
+        self.model_optimizer = base_optimizer_cls(model_params, *model_args, **model_kwargs)
+        self.gradnorm_optimizer = base_optimizer_cls(gradnorm_params, *gradnorm_args, **gradnorm_kwargs)
+
+    def backward(self, **kwargs):
+        self.model_optimizer.backward(**kwargs)
+        self.gradnorm_optimizer.backward(**kwargs)
+
+    def zero_grad(self):
+        self.model_optimizer.zero_grad()
+        self.gradnorm_optimizer.zero_grad()
+
+    def step(self):
+        self.model_optimizer.step()
+        self.gradnorm_optimizer.step()
+
+    def state_dict(self):
+        return {
+            'model_optimizer': self.model_optimizer.state_dict(),
+            'gradnorm_optimizer': self.gradnorm_optimizer.state_dict()
+        }
+
+    def load_state_dict(self, state_dict):
+        self.model_optimizer.load_state_dict(state_dict['model_optimizer'])
+        self.gradnorm_optimizer.load_state_dict(state_dict['gradnorm_optimizer'])
+        
+    def move_to_device(self, device):
+        def move_this_optimizer_to_device(optimizer, device):
+            for state in optimizer.state.values():
+                for k, v in state.items():
+                    if isinstance(v, torch.Tensor):
+                        state[k] = v.to(device)
+       
+        move_this_optimizer_to_device(self.model_optimizer, device)
+        move_this_optimizer_to_device(self.gradnorm_optimizer, device)
+
 class GLSD(ERM):
     """GLSD algorithm """
     def __init__(self, SSD, input_shape, num_classes, num_domains, hparams):
@@ -2825,13 +2891,6 @@ class GLSD(ERM):
         if SSD:
             initial_weights["ssd"] = 1.0
             
-        self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, 
-                alpha=hparams["glsd_gradnorm_alpha"], device=device, smoothing=hparams["glsd_gradnorm_smoothing"])
-        self.gradnorm_optimizer = torch.optim.Adam(self.gradnorm_balancer.parameters(), 
-                hparams["lr"],
-                weight_decay=self.hparams['weight_decay'],
-        )
-
         self.SSD = SSD
         self.hparams = hparams
         capacity = 5*num_domains*hparams['batch_size']
@@ -2849,21 +2908,19 @@ class GLSD(ERM):
         self.register_buffer('pi_prev', torch.tensor([0]*(num_domains-1)+[1]))
         self.register_buffer('margin', torch.tensor([0.2]))
         self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None), ("nll",None)], alpha=0.99)
+        self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, 
+                alpha=hparams["glsd_gradnorm_alpha"], device=device, smoothing=hparams["glsd_gradnorm_smoothing"])
 
         if self.hparams["glsd_optimizer"] == "sgd":
-            self.optimizer = torch.optim.SGD(
-                self.network.parameters(),
-                lr=self.hparams["lr"],
-                momentum=0.9,
-                weight_decay=self.hparams['weight_decay']
-            )
-            self.gradnorm_optimizer = torch.optim.SGD(
-                self.gradnorm_balancer.parameters(), 
-                hparams["lr"],
-                momentum=0.9,
-                weight_decay=self.hparams['weight_decay'],
-            )
-
+            base_optimizer_cls=torch.optim.SGD
+            extra_pars = {"momentun": 0.9}
+        else:
+            base_optimizer_cls=torch.optim.Adam
+            extra_pars = {}
+            
+        self.optimizer = CombinedOptimizer(self.network.parameters(), self.gradnorm_balancer.parameters(), 
+                base_optimizer_cls=base_optimizer_cls, lr=self.hparams["lr"], weight_decay=self.hparams['weight_decay'], **extra_pars)
+       
         self.glsd_after_load_state_count = 0
 
         def GLSD_load_state_post_hook(module, incompatible_keys):
@@ -3403,7 +3460,6 @@ class GLSD(ERM):
 
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
-            self.gradnorm_optimizer.zero_grad()
 
             # Combine with GradNorm
             losses = {"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll}
@@ -3425,11 +3481,9 @@ class GLSD(ERM):
 
 
             loss.backward(retain_graph=True)
-            loss_gradnorm.backward()
             
             # Now update both optimizers
             self.optimizer.step()
-            self.gradnorm_optimizer.step()
 
             data = {"sorted_eta": sorted_eta.detach(), "envs": envs.detach()} # assume we're no backproping the error to previous rounds
             self.buffer.append(data)
