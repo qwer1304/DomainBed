@@ -3358,6 +3358,43 @@ class GLSD(ERM):
         nll = soft_upper_clamp(losses, self.hparams["glsd_nll_threshold_sample"])
         nll = nll.sum(1).mean().unsqueeze(0) # sum over batch, mean over envs
 
+        lambda_min = -self.hparams['glsd_affine_hull_gamma'] / np.sqrt(n)
+
+        def generate_samples_from_affine_hull(K, n, lambda_min, device):
+            """Generates samples from semi-bounded affine hull
+            Args:
+                K: Number of sets to generate
+                n: Size of each sample (number of domains)
+                lambda_min: minimal lambda, can (and normally will) be negative
+                device: device to put the result on
+            Returns:
+                A tensor (n,K) of affine coefficients
+            """   
+            if K > 0:
+                lambda_max = 1 - (n - 1) * lambda_min
+                Lambdas = torch.rand(n-1,K,device=device)
+                Lambdas = lambda_min + (lambda_max - lambda_min)*Lambdas # move to [a,b]
+                last_row = 1 - Lambdas.sum(dim=0)  # shape: (K,)
+                Lambdas = torch.cat([Lambdas, last_row.unsqueeze(0)], dim=0)  # shape: (n, K)
+                # Lambdas: shape (n, K)
+                perms = torch.stack([torch.randperm(n) for _ in range(K)], dim=1).to(device)  # shape (n, K)
+                # Use gather to permute each column independently
+                Lambdas = torch.gather(Lambdas, 0, perms)
+            else:
+                Lambdas = torch.empty(n,K,device=device,dtype=torch.float)
+            return Lambdas
+
+        K = self.hparams["glsd_K"]
+        lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min, device=device) # (n,K-1)
+
+        if self.hparams["glsd_dominate_all_domains"]:
+            perm = torch.randperm(n, device=device)
+            one_hot = torch.zeros(n, n, dtype=torch.float32, device=device)
+            one_hot[torch.arange(n, device=device), perm] = 1.0
+            one_hot.requires_grad_(False) # (n,n)
+            # (n,K-1)            (n,K-1)   (n,n), K' = K + n
+            lambdas = torch.cat([lambdas, one_hot],dim=1)
+
         if not self.hparams["glsd_as_regularizer"]:
             """
             In classification we want min_theta max_lambda E[loss].
@@ -3381,43 +3418,6 @@ class GLSD(ERM):
             pi = alpha*self.pi + (1-alpha)*self.pi_prev
 
             pi = pi.detach() # (n,)
-
-            lambda_min = -self.hparams['glsd_affine_hull_gamma'] / np.sqrt(n)
-
-            def generate_samples_from_affine_hull(K, n, lambda_min, device):
-                """Generates samples from semi-bounded affine hull
-                Args:
-                    K: Number of sets to generate
-                    n: Size of each sample (number of domains)
-                    lambda_min: minimal lambda, can (and normally will) be negative
-                    device: device to put the result on
-                Returns:
-                    A tensor (n,K) of affine coefficients
-                """   
-                if K > 0:
-                    lambda_max = 1 - (n - 1) * lambda_min
-                    Lambdas = torch.rand(n-1,K,device=device)
-                    Lambdas = lambda_min + (lambda_max - lambda_min)*Lambdas # move to [a,b]
-                    last_row = 1 - Lambdas.sum(dim=0)  # shape: (K,)
-                    Lambdas = torch.cat([Lambdas, last_row.unsqueeze(0)], dim=0)  # shape: (n, K)
-                    # Lambdas: shape (n, K)
-                    perms = torch.stack([torch.randperm(n) for _ in range(K)], dim=1).to(device)  # shape (n, K)
-                    # Use gather to permute each column independently
-                    Lambdas = torch.gather(Lambdas, 0, perms)
-                else:
-                    Lambdas = torch.empty(n,K,device=device,dtype=torch.float)
-                return Lambdas
-
-            K = self.hparams["glsd_K"]
-            lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min, device=device) # (n,K-1)
-
-            if self.hparams["glsd_dominate_all_domains"]:
-                perm = torch.randperm(n, device=device)
-                one_hot = torch.zeros(n, n, dtype=torch.float32, device=device)
-                one_hot[torch.arange(n, device=device), perm] = 1.0
-                one_hot.requires_grad_(False) # (n,n)
-                # (n,K-1)            (n,K-1)   (n,n), K' = K + n
-                lambdas = torch.cat([lambdas, one_hot],dim=1)
 
             lambda_pos = 1 - (n - 1) * lambda_min
             # (n,)          (n,)
@@ -3508,7 +3508,22 @@ class GLSD(ERM):
             return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(),
                 'nll': nll.item(), 'worst_env': int(worst_e_index), **scalar_loss_weights, }      
         else:        
-            _, F1, F2 = calculate_Fks(-losses)
+            lambdas = lambdas.detach() # (n,K-1)
+            loss_ssd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
+            loss_fsd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
+            b = losses.size()[1]
+            for i in range(lambdas.size()[1]):
+                lambda_i = lambdas[:,i].squeeze() # (n,)
+                # Need lambdas: (n,weights)
+                lambda_ii = lambda_i.unsqueeze(1).repeat(1, b) / b # (n,b)
+                _, l_fsd, l_ssd = calculate_Fks(-losses, lambda_ii)
+                loss_ssd = loss_ssd + l_ssd
+                loss_fsd = loss_fsd + l_fsd
+            loss_ssd = loss_ssd / K
+            loss_fsd = loss_fsd / K
+            F1 = loss_fsd
+            F2 = loss_ssd
+
             if self.SSD:
                 diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb]
             else:
