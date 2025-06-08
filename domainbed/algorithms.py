@@ -3519,8 +3519,8 @@ class GLSD(ERM):
                 _, l_fsd, l_ssd = calculate_Fks(-losses, lambda_ii)
                 loss_ssd = loss_ssd + l_ssd
                 loss_fsd = loss_fsd + l_fsd
-            loss_ssd = loss_ssd / K
-            loss_fsd = loss_fsd / K
+            loss_ssd = loss_ssd / (lambdas.size()[1] + 1)
+            loss_fsd = loss_fsd / (lambdas.size()[1] + 1)
             F1 = loss_fsd
             F2 = loss_ssd
 
