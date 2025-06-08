@@ -2911,7 +2911,7 @@ class GLSD(ERM):
             if SSD:
                 initial_weights["ssd"] = 1.0
         else:
-            initial_weights = {"penalty": 10.0, "nll": 1.0, }
+            initial_weights = {"penalty": 1.0, "nll": 1.0, }
         
         self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, 
                 alpha=hparams["glsd_gradnorm_alpha"], device=device, smoothing=hparams["glsd_gradnorm_smoothing"])
@@ -3515,23 +3515,29 @@ class GLSD(ERM):
                 diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb]
             penalty = diffs.square().sum()
 
-            losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze()}
-            loss_weights, loss_gradnorm = self.gradnorm_balancer.compute_weights_and_loss(losses)
-            
             # Sign for each task
-            loss_signs = {
-                "penalty": 1.0,
-                "nll": 1.0
-            }
-            # Combine weights
-            signed_weighted_losses = {
-                name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
-            }
-            # Final total loss
-            loss = (
-                sum(signed_weighted_losses.values())
-                + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
-            )
+            loss_signs = {"penalty": 1.0, "nll": 1.0, }
+            if self.update_count > 10:
+                losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze()}
+                loss_weights, loss_gradnorm = self.gradnorm_balancer.compute_weights_and_loss(losses)
+
+                # Combine weights
+                signed_weighted_losses = {
+                    name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
+                }
+                # Final total loss
+                loss = (
+                    sum(signed_weighted_losses.values())
+                    + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
+                )
+            else: # don't run gradnorm for several rounds
+                loss_weights = {"penalty": 1.0, "nll": 1.0}
+                signed_weighted_losses = {
+                    name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
+                }
+                loss = (
+                    sum(signed_weighted_losses.values())
+                )
 
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
