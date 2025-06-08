@@ -2631,7 +2631,9 @@ class GradNormLossBalancer:
             smoothed_rates = torch.tensor([self.running_loss_rates[k] for k in self.task_names], device=grads.device)
 
         # Step 5: GradNorm loss
-        gradnorm_loss = (weighted_grads - avg_grad * smoothed_rates).abs().sum()
+        #gradnorm_loss = (weighted_grads - avg_grad * smoothed_rates).abs().sum()
+        gradnorm_loss = ((weighted_grads - avg_grad * smoothed_rates) ** 2).sum()
+
 
         # Step 6: Normalize task weights
         
@@ -3515,7 +3517,9 @@ class GLSD(ERM):
 
             losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze()}
             loss_weights, loss_gradnorm = self.gradnorm_balancer.compute_weights_and_loss(losses)
-
+            
+            print(f"GradNorm loss: {loss_gradnorm.item():.4f}")
+            
             # Sign for each task
             loss_signs = {
                 "penalty": 1.0,
