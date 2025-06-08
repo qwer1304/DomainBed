@@ -3476,9 +3476,13 @@ class GLSD(ERM):
             }
             # Final total loss
             nll_relu = F.relu(nll - self.hparams["glsd_nll_threshold_global"])
-            loss = sum(signed_weighted_losses.values()) + self.hparams["glsd_nll_lambda"] * nll_relu
+            loss = (
+                sum(signed_weighted_losses.values())
+                + self.hparams["glsd_nll_lambda"] * nll_relu
+                + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
+            )
 
-            self.optimizer.backward(loss, retain_graph=True)
+            loss.backward(retain_graph=True)
             
             # Now update both optimizers
             self.optimizer.step()
