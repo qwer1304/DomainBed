@@ -3399,6 +3399,12 @@ class GLSD(ERM):
             lambdas = torch.cat([lambdas, one_hot],dim=1)
         K = lambdas.size()[1] # update number of lambdas
 
+        def get_total_grad_norm(model):
+            return torch.sqrt(sum((p.grad**2).sum() for p in model.parameters() if p.grad is not None)).item()
+            
+        if self.update_count % 10 == 0:
+            print(get_total_grad_norm(self.network))
+
         if not self.hparams["glsd_as_regularizer"]:
             """
             In classification we want min_theta max_lambda E[loss].
@@ -3464,9 +3470,6 @@ class GLSD(ERM):
                 loss_fsd = loss_fsd + l_fsd
             loss_ssd = loss_ssd / K
             loss_fsd = loss_fsd / K
-
-            def get_total_grad_norm(model):
-                return torch.sqrt(sum((p.grad**2).sum() for p in model.parameters() if p.grad is not None)).item()
 
             if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
                 # Combine with GradNorm
