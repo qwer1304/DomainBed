@@ -3400,7 +3400,10 @@ class GLSD(ERM):
         K = lambdas.size()[1] # update number of lambdas
 
         def get_total_grad_norm(model):
-            return torch.norm(torch.stack([p.grad.norm() for p in model.parameters() if p.grad is not None])).item()
+            grads = [p.grad for p in model.parameters() if p.grad is not None]
+            if not grads:
+                return 0.0
+            return torch.norm(torch.stack([g.norm() for g in grads])).item()
             
         if not self.hparams["glsd_as_regularizer"]:
             """
