@@ -3543,29 +3543,28 @@ class GLSD(ERM):
                 lambda_i = lambdas[:,i].squeeze() # (n,)
                 # Need lambdas: (n,weights)
                 lambda_ii = lambda_i.unsqueeze(1).repeat(1, b) / b # (n,b)
-                _, l_fsd, l_ssd = calculate_Fks(-losses, lambda_ii) # (n, nb)
+
+                (sorted_eta, envs, lambdas_sorted_all), l_fsd, l_ssd = calculate_Fks(-losses, lambda_ii) # (n, nb)
+                
+                if torch.isnan(l_fsd).any():
+                    print("seta", sorted_eta.tolist())
+                    print("envs", envs.tolist())
+                    print("lsall",lambdas_sorted_all.tolist())
+                    print("F1",l_fsd)
+                if torch.isnan(l_ssd).any():
+                    print("seta", sorted_eta.tolist())
+                    print("envs", envs.tolist())
+                    print("lsall",lambdas_sorted_all.tolist())
+                    print("F2",l_ssd)
+                    
                 loss_ssd = torch.cat((loss_ssd, l_ssd.unsqueeze(-1)), dim=-1) # add current to buffer
                 loss_fsd = torch.cat((loss_fsd, l_fsd.unsqueeze(-1)), dim=-1) # add current to buffer
             F1 = loss_fsd # (n,nb,K)
             F2 = loss_ssd # (n,nb,K)
             F2 = F2.clamp(min=-20.0, max=20.0)
             F1 = F1.clamp(min=-20.0, max=20.0)
-
-            if torch.isnan(F1).any():
-                print("F1", F1.tolist())
-            if torch.isnan(F2).any():
-                print("F2",F2.tolist())
-                
-            if self.SSD:
-                diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb, K]
-            else:
-                diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb, K]
-            if torch.isnan(diffs).any():
-                print("diffs",diffs.tolist())
-                
+               
             penalty = (F.softplus(diffs) + F.softplus(-diffs)).mean()
-            if torch.isnan(penalty).any():
-                print("penalty",penalty.tolist())
 
             # Sign for each task
             loss_signs = {"penalty": 1.0, "nll": 1.0, }
