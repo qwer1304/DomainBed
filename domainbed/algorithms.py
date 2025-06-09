@@ -3498,6 +3498,8 @@ class GLSD(ERM):
                 loss = (
                     sum(signed_weighted_losses.values())
                 )
+                loss_gradnorm = torch.tensor([0])
+
 
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
@@ -3571,6 +3573,7 @@ class GLSD(ERM):
                 loss = (
                     sum(signed_weighted_losses.values())
                 )
+                loss_gradnorm = torch.tensor([0])
 
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
