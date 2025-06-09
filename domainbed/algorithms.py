@@ -3559,7 +3559,17 @@ class GLSD(ERM):
                     print("l_ssd",l_ssd)  
                     torch._assert(False,"Stop!!!!!!!!!")  
                 
+                if torch.isnan(loss_ssd).any():
+                    print("loss_ssd before",loss_ssd)  
+                    torch._assert(False,"Stop!!!!!!!!!")  
+                if torch.isnan(l_ssd).any():
+                    print("l_ssd",l_ssd)  
+                    torch._assert(False,"Stop!!!!!!!!!")  
                 loss_ssd = torch.cat((loss_ssd, l_ssd.unsqueeze(-1)), dim=-1) # add current to buffer
+                if torch.isnan(loss_ssd).any():
+                    print("loss_ssd after",loss_ssd)  
+                    torch._assert(False,"Stop!!!!!!!!!")  
+                    
                 loss_fsd = torch.cat((loss_fsd, l_fsd.unsqueeze(-1)), dim=-1) # add current to buffer
                 if torch.isnan(loss_fsd).any():
                     print("loss_fsd",loss_fsd)  
