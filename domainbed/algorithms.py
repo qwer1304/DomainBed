@@ -2603,7 +2603,9 @@ class GradNormLossBalancer:
         grads = []
         for loss in task_losses:
             self.model.zero_grad()
-            loss.backward()
+            loss.backward(retain_graph=True)
+            torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=10)
+
             grad_norm = 0.0
             for p in shared_params:
                 if p.grad is not None:
@@ -3506,7 +3508,7 @@ class GLSD(ERM):
 
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
-            loss.backward()           
+            loss.backward(retain_graph=True)           
             # Now update both optimizers
             self.optimizer.step()
 
