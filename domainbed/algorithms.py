@@ -2923,8 +2923,11 @@ class GLSD(ERM):
             base_optimizer_cls=torch.optim.Adam
             extra_pars = {}
             
+        model_kwargs = {"lr": 1.0*self.hparams["lr"], "weight_decay": self.hparams['weight_decay'], **extra_pars}        
+        gradnorm_kwargs = {"lr": 2.5*self.hparams["lr"], "weight_decay": self.hparams['weight_decay'], **extra_pars}        
+        
         self.optimizer = CombinedOptimizer(self.network.parameters(), self.gradnorm_balancer.parameters(), 
-                base_optimizer_cls=base_optimizer_cls, lr=self.hparams["lr"], weight_decay=self.hparams['weight_decay'], **extra_pars)
+                base_optimizer_cls=base_optimizer_cls, model_kwargs=model_kwargs, gradnorm_kwargs=gradnorm_kwargs)
        
         self.glsd_after_load_state_count = 0
 
