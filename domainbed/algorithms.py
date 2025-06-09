@@ -3587,6 +3587,8 @@ class GLSD(ERM):
             if self.update_count > 440:
                 print(get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), loss_gradnorm.item(), nll.item(), penalty.item(), loss.item())
 
+            torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=10)
+            torch.nn.utils.clip_grad_norm_(self.gradnorm_balancer.parameters(), max_norm=10)
             self.optimizer.step()
 
             self.update_count += 1
