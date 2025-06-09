@@ -3551,11 +3551,21 @@ class GLSD(ERM):
             F2 = F2.clamp(min=-20.0, max=20.0)
             F1 = F1.clamp(min=-20.0, max=20.0)
 
+            if torch.isnan(F1).any():
+                print("F1", F1.tolist())
+            if torch.isnan(F2).any():
+                print("F2",F2.tolist())
+                
             if self.SSD:
                 diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb, K]
             else:
                 diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb, K]
+            if torch.isnan(diffs).any():
+                print("diffs",diffs.tolist())
+                
             penalty = (F.softplus(diffs) + F.softplus(-diffs)).mean()
+            if torch.isnan(penalty).any():
+                print9"penalty",penalty.tolist())
 
             # Sign for each task
             loss_signs = {"penalty": 1.0, "nll": 1.0, }
