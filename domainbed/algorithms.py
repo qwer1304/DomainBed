@@ -3553,7 +3553,7 @@ class GLSD(ERM):
                 diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb, K]
             else:
                 diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb, K]
-            penalty = (torch.softplus(diffs) + torch.softplus(-diffs)).mean()
+            penalty = (F.softplus(diffs) + F.softplus(-diffs)).mean()
 
             # Sign for each task
             loss_signs = {"penalty": 1.0, "nll": 1.0, }
