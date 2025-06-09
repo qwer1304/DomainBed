@@ -2603,7 +2603,7 @@ class GradNormLossBalancer:
         grads = []
         for loss in task_losses:
             self.model.zero_grad()
-            loss.backward(retain_graph=True)
+            loss.backward()
             grad_norm = 0.0
             for p in shared_params:
                 if p.grad is not None:
@@ -3506,7 +3506,7 @@ class GLSD(ERM):
 
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
-            loss.backward(retain_graph=True)           
+            loss.backward()           
             # Now update both optimizers
             self.optimizer.step()
 
