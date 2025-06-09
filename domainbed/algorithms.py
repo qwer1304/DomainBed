@@ -3355,8 +3355,6 @@ class GLSD(ERM):
             nll = F.cross_entropy(logits, y, reduction='none') # nll depends on network
             losses.append(nll) # losses depend on network
         losses = torch.stack(losses) # env x b, Concatenates a sequence of tensors along a new dimension.
-        if torch.isnan(losses).any():
-            print("losses",losses)
        
         def soft_upper_clamp(nll, threshold, sharpness=10.0):  # slope ~1
             s = torch.sigmoid(-sharpness * (nll - threshold))
@@ -3547,9 +3545,21 @@ class GLSD(ERM):
                 lambda_ii = lambda_i.unsqueeze(1).repeat(1, b) / b # (n,b)
                
                 (sorted_eta, envs, lambdas_sorted_all), l_fsd, l_ssd = calculate_Fks(-losses, lambda_ii) # (n, nb)
-                                   
+                
+                if torch.isnan(losses).any():
+                    print("losses",losses)                                   
+                if torch.isnan(sorted_eta).any():
+                    print("sorted_eta",sorted_eta)                                   
+                if torch.isnan(l_fsd).any():
+                    print("l_ssd",l_fsd)                                   
+                if torch.isnan(l_ssd).any():
+                    print("l_ssd",l_ssd)  
+                torch._assert(False,"Stop!!!!!!!!!")  
+                
                 loss_ssd = torch.cat((loss_ssd, l_ssd.unsqueeze(-1)), dim=-1) # add current to buffer
                 loss_fsd = torch.cat((loss_fsd, l_fsd.unsqueeze(-1)), dim=-1) # add current to buffer
+
+
 
             F1 = loss_fsd # (n,nb,K)
             F2 = loss_ssd # (n,nb,K)
