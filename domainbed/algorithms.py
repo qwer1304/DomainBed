@@ -2971,7 +2971,7 @@ class GLSD(ERM):
         self.buffer = state["buffer"]
         self.loss_balancer.alpha = state["loss_balancer"]["alpha"]
         self.loss_balancer.running_avgs = state["loss_balancer"]["running_avgs"]
-        self.gradnorm_balancer = state["loss_balancer"]["gradnorm_balancer"]
+        self.gradnorm_balancer.load_state_dict(state["loss_balancer"]["gradnorm_balancer"])
     
     def update(self, minibatches, unlabeled=None):
     
