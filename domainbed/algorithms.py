@@ -2979,8 +2979,8 @@ class GLSD(ERM):
                 lambdas: (n,weights) or None of per example weights. None means 1/b (n,b)
                 tau: temperature parameter for smoothness
             Returns:
-                Per environment F1
-                Per environment F2
+                Per environment F1 (n,nb)
+                Per environment F2 (n,nb)
                 tuple (sorted_eta, envs, lambdas) of eta for which Fk were computed, mapping to which env it came from and its weight 
             """    
             device = x.device
@@ -3512,28 +3512,34 @@ class GLSD(ERM):
             # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
             return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(),
                 'nll': nll.item(), 'worst_env': int(worst_e_index), **scalar_loss_weights, }      
-        else:        
+        else:      
+            """
+            Use Fk of the different domains as regularizer:
+            1. Calculate Fk for all domains (including the imagined ones) for all etas and configurations.
+            2. Take the squared difference between all domain pairs.
+            3. Sum over all pairs, all etas.
+            4. Normalize by the number of configurations (K).
+            5. Use this as a penalty (i.e., we want all Fks to be the same for all etas)
+            """
             lambdas = lambdas.detach() # (n,K)
-            loss_ssd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
-            loss_fsd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
             b = losses.size()[1]
+            loss_ssd = torch.empty(n,n*b,K,device=device,requires_grad=True,dtype=torch.float) # (n,nb,K)
+            loss_fsd = torch.empty(n,n*b,K,device=device,requires_grad=True,dtype=torch.float) # (n,nb,K)
             for i in range(K):
                 lambda_i = lambdas[:,i].squeeze() # (n,)
                 # Need lambdas: (n,weights)
                 lambda_ii = lambda_i.unsqueeze(1).repeat(1, b) / b # (n,b)
-                _, l_fsd, l_ssd = calculate_Fks(-losses, lambda_ii)
-                loss_ssd = loss_ssd + l_ssd
-                loss_fsd = loss_fsd + l_fsd
-            loss_ssd = loss_ssd / K
-            loss_fsd = loss_fsd / K
-            F1 = loss_fsd
-            F2 = loss_ssd
+                _, l_fsd, l_ssd = calculate_Fks(-losses, lambda_ii) # (n, nb)
+                loss_ssd = torch.cat((loss_ssd, l_ssd.unsqueeze(-1)), dim=-1) # add current to buffer
+                loss_fsd = torch.cat((loss_fsd, l_fsd.unsqueeze(-1)), dim=-1) # add current to buffer
+            F1 = loss_fsd # (n,nb,K)
+            F2 = loss_ssd # (n,nb,K)
 
             if self.SSD:
-                diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb]
+                diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb, K]
             else:
-                diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb]
-            penalty = diffs.square().sum()
+                diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb, K]
+            penalty = diffs.square().sum() / K
 
             # Sign for each task
             loss_signs = {"penalty": 1.0, "nll": 1.0, }
