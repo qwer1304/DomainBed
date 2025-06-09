@@ -3551,7 +3551,7 @@ class GLSD(ERM):
                 diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb, K]
             else:
                 diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb, K]
-            penalty = diffs.abs().mean()
+            penalty = torch.linalg.norm(diffs) # L2 norm
 
             # Sign for each task
             loss_signs = {"penalty": 1.0, "nll": 1.0, }
