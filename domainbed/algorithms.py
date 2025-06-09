@@ -3544,6 +3544,9 @@ class GLSD(ERM):
                 # Need lambdas: (n,weights)
                 lambda_ii = lambda_i.unsqueeze(1).repeat(1, b) / b # (n,b)
 
+                if torch.isnan(losses).any():
+                    print("loss",losses.tolist())
+                
                 (sorted_eta, envs, lambdas_sorted_all), l_fsd, l_ssd = calculate_Fks(-losses, lambda_ii) # (n, nb)
                 
                 if torch.isnan(l_fsd).any():
