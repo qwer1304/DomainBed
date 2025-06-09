@@ -3580,7 +3580,7 @@ class GLSD(ERM):
             loss.backward(retain_graph=True)
             
             if self.update_count % 10 == 0:
-                print(get_total_grad_norm(self.network))
+                print(get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer))
 
             self.optimizer.step()
 
