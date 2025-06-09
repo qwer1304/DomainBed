@@ -3585,7 +3585,7 @@ class GLSD(ERM):
             loss.backward(retain_graph=True)
             
             if self.update_count > 440:
-                print(get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), loss_gradnorm, nll, penalty, loss)
+                print(get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), loss_gradnorm.item(), nll.item(), penalty.item(), loss.item())
 
             self.optimizer.step()
 
