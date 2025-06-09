@@ -2931,10 +2931,12 @@ class GLSD(ERM):
        
         self.glsd_after_load_state_count = 0
 
+        """
         def GLSD_load_state_post_hook(module, incompatible_keys):
             module.glsd_after_load_state_count = module.hparams["glsd_after_load_state_count"]
 
         self.register_load_state_dict_post_hook(GLSD_load_state_post_hook)
+        """
 
     """
     module = self
