@@ -3400,7 +3400,7 @@ class GLSD(ERM):
         K = lambdas.size()[1] # update number of lambdas
 
         def get_total_grad_norm(model):
-            return torch.sqrt(sum((p.grad**2).sum() for p in model.parameters() if p.grad is not None)).item()
+            return torch.norm(torch.stack([p.grad.norm() for p in model.parameters() if p.grad is not None])).item()
             
         if self.update_count % 10 == 0:
             print(get_total_grad_norm(self.network))
