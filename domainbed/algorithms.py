@@ -3559,11 +3559,16 @@ class GLSD(ERM):
                     
                 loss_ssd = torch.cat((loss_ssd, l_ssd.unsqueeze(-1)), dim=-1) # add current to buffer
                 loss_fsd = torch.cat((loss_fsd, l_fsd.unsqueeze(-1)), dim=-1) # add current to buffer
+
             F1 = loss_fsd # (n,nb,K)
             F2 = loss_ssd # (n,nb,K)
             F2 = F2.clamp(min=-20.0, max=20.0)
             F1 = F1.clamp(min=-20.0, max=20.0)
                
+            if self.SSD:
+                diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb, K]
+            else:
+                diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb, K]
             penalty = (F.softplus(diffs) + F.softplus(-diffs)).mean()
 
             # Sign for each task
