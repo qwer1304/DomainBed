@@ -3544,7 +3544,13 @@ class GLSD(ERM):
                 # Need lambdas: (n,weights)
                 lambda_ii = lambda_i.unsqueeze(1).repeat(1, b) / b # (n,b)
                
+                if torch.isnan(loss_ssd).any():
+                    print("loss_ssd before calculate Fks",loss_ssd)  
+                    torch._assert(False,"Stop!!!!!!!!!")  
                 (sorted_eta, envs, lambdas_sorted_all), l_fsd, l_ssd = calculate_Fks(-losses, lambda_ii) # (n, nb)
+                if torch.isnan(loss_ssd).any():
+                    print("loss_ssd after calculate Fks",loss_ssd)  
+                    torch._assert(False,"Stop!!!!!!!!!")  
                 
                 if torch.isnan(losses).any():
                     print("losses",losses)                                   
@@ -3565,7 +3571,9 @@ class GLSD(ERM):
                 if torch.isnan(l_ssd).any():
                     print("l_ssd",l_ssd)  
                     torch._assert(False,"Stop!!!!!!!!!")  
+                
                 loss_ssd = torch.cat((loss_ssd, l_ssd.unsqueeze(-1)), dim=-1) # add current to buffer
+                
                 if torch.isnan(loss_ssd).any():
                     print("loss_ssd after",loss_ssd)  
                     torch._assert(False,"Stop!!!!!!!!!")  
