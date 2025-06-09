@@ -3581,7 +3581,6 @@ class GLSD(ERM):
                 print("diffs",diffs)  
                 torch._assert(False,"Stop!!!!!!!!!")  
             penalty = (F.softplus(diffs) + F.softplus(-diffs)).mean()
-                diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb, K]
             if torch.isnan(penalty).any():
                 print("penalty",penalty)  
                 torch._assert(False,"Stop!!!!!!!!!")  
