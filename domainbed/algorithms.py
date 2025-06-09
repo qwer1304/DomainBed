@@ -3402,9 +3402,6 @@ class GLSD(ERM):
         def get_total_grad_norm(model):
             return torch.norm(torch.stack([p.grad.norm() for p in model.parameters() if p.grad is not None])).item()
             
-        if self.update_count % 10 == 0:
-            print(get_total_grad_norm(self.network))
-
         if not self.hparams["glsd_as_regularizer"]:
             """
             In classification we want min_theta max_lambda E[loss].
@@ -3581,6 +3578,10 @@ class GLSD(ERM):
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
             loss.backward(retain_graph=True)
+            
+            if self.update_count % 10 == 0:
+                print(get_total_grad_norm(self.network))
+
             self.optimizer.step()
 
             self.update_count += 1
