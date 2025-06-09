@@ -3540,6 +3540,9 @@ class GLSD(ERM):
             loss_ssd = torch.empty(n,n*b,K,device=device,requires_grad=True,dtype=torch.float) # (n,nb,K)
             loss_fsd = torch.empty(n,n*b,K,device=device,requires_grad=True,dtype=torch.float) # (n,nb,K)
             for i in range(K):
+                if torch.isnan(loss_ssd).any():
+                    print("loss_ssd top of loop",loss_ssd)  
+                    torch._assert(False,"Stop!!!!!!!!!")  
                 lambda_i = lambdas[:,i].squeeze() # (n,)
                 # Need lambdas: (n,weights)
                 lambda_ii = lambda_i.unsqueeze(1).repeat(1, b) / b # (n,b)
@@ -3634,7 +3637,7 @@ class GLSD(ERM):
             loss.backward(retain_graph=True)
             
             if self.update_count > 440:
-                print(get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), 
+                print(self.update_count, ":", get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), 
                     loss_gradnorm.item(), nll.item(), penalty.item(), loss.item(), grads.tolist())
 
             torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=10)
