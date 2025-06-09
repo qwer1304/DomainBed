@@ -2646,7 +2646,7 @@ class GradNormLossBalancer:
                 for i, k in enumerate(self.task_names)
         }
 
-        return normalized_weights, gradnorm_loss
+        return normalized_weights, gradnorm_loss, grads
 
     def state_dict(self):
         return {
@@ -3476,7 +3476,7 @@ class GLSD(ERM):
             if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
                 # Combine with GradNorm
                 losses = {"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll}
-                loss_weights, loss_gradnorm = self.gradnorm_balancer.compute_weights_and_loss(losses)
+                loss_weights, loss_gradnorm, _ = self.gradnorm_balancer.compute_weights_and_loss(losses)
 
                 # Sign for each task
                 loss_signs = {
@@ -3561,7 +3561,7 @@ class GLSD(ERM):
             loss_signs = {"penalty": 1.0, "nll": 1.0, }
             losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze()}
             if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
-                loss_weights, loss_gradnorm = self.gradnorm_balancer.compute_weights_and_loss(losses)
+                loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses)
 
                 # Combine weights
                 signed_weighted_losses = {
@@ -3581,13 +3581,15 @@ class GLSD(ERM):
                     sum(signed_weighted_losses.values())
                 )
                 loss_gradnorm = torch.tensor([0])
+                grads = torch.tensor([0])
 
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
             loss.backward(retain_graph=True)
             
             if self.update_count > 440:
-                print(get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), loss_gradnorm.item(), nll.item(), penalty.item(), loss.item())
+                print(get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), l
+                    oss_gradnorm.item(), nll.item(), penalty.item(), loss.item(), grads.item())
 
             torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=10)
             torch.nn.utils.clip_grad_norm_(self.gradnorm_balancer.parameters(), max_norm=10)
