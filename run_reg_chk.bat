@@ -1,0 +1,12 @@
+python -m domainbed.scripts.train^
+       --data_dir=./domainbed/data/MNIST/^
+       --algorithm GLSD_SSD^
+       --dataset ColoredMNIST^
+       --test_env 4^
+       --steps 20000^
+       --checkpoint_freq 1^
+       --hparams "{\"batch_size\": 128, \"resnet_dropout\": 0.5, \"weight_decay\": 1e-3, \"glsd_optimizer\": \"adam\", \"lr\": 0.001, \"glsd_gradnorm_alpha\": 2.0, \"glsd_gradnorm_smoothing\": false, \"glsd_affine_hull_gamma\": 8, \"glsd_as_regularizer\": true, \"glsd_gradnorm_lambda\": 1.0, \"glsd_dominate_all_domains\": true}"^
+       --colwidth=10^
+       --load_from_checkpoint^
+       --checkpoint_use_current_args^
+       --checkpoint_file ./train_output/model.pkl

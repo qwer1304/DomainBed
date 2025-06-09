@@ -2957,18 +2957,19 @@ class GLSD(ERM):
         # state_dict(): Return a dictionary containing references to the whole state of the module
         return {"buffer": self.buffer,
                 "loss_balancer": {"alpha": self.loss_balancer.alpha,
-                                  "running_avgs": self.loss_balancer.running_avgs,
+                                  "running_avgs": self.loss_balancer.running_avgs, 
+                }, 
                 "gradnorm_balancer": self.gradnorm_balancer.state_dict(),
-                }
        }
 
     def set_extra_state(self, state):
         # This function is called from load_state_dict()
         # load_state_dict(state_dict): Copy parameters and buffers from state_dict into this module and its descendants.
+        print(state)
         self.buffer = state["buffer"]
         self.loss_balancer.alpha = state["loss_balancer"]["alpha"]
         self.loss_balancer.running_avgs = state["loss_balancer"]["running_avgs"]
-        self.gradnorm_balancer = state["gradnorm_balancer"]
+        self.gradnorm_balancer = state["loss_balancer"]["gradnorm_balancer"]
     
     def update(self, minibatches, unlabeled=None):
     
@@ -3556,7 +3557,8 @@ class GLSD(ERM):
                 diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb, K]
             else:
                 diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb, K]
-            penalty = (F.softplus(diffs) + F.softplus(-diffs)).mean()
+            penalty = diffs.abs().mean()
+            #penalty = (F.softplus(diffs) + F.softplus(-diffs)).mean()
 
             # Sign for each task
             loss_signs = {"penalty": 1.0, "nll": 1.0, }
