@@ -2604,7 +2604,6 @@ class GradNormLossBalancer:
         for loss in task_losses:
             self.model.zero_grad()
             loss.backward(retain_graph=True)
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10)
 
             grad_norm = 0.0
             for p in shared_params:
@@ -2635,7 +2634,6 @@ class GradNormLossBalancer:
         # Step 5: GradNorm loss
         gradnorm_loss = (weighted_grads - avg_grad * smoothed_rates).abs().sum()
         #gradnorm_loss = ((weighted_grads - avg_grad * smoothed_rates) ** 2).sum()
-
 
         # Step 6: Normalize task weights
         
@@ -3336,7 +3334,6 @@ class GLSD(ERM):
             
             return ret_val_F2, ret_val_F1, sorted_eta, sorted_is_y
 
-
         # What are minibatches? Looks like they're minibatch per environment
         penalty_weight = 1.0
         nll = 0.
@@ -3537,74 +3534,29 @@ class GLSD(ERM):
             """
             lambdas = lambdas.detach() # (n,K)
             b = losses.size()[1]
-            loss_ssd = torch.empty(n,n*b,K,device=device,requires_grad=True,dtype=torch.float) # (n,nb,K)
-            loss_fsd = torch.empty(n,n*b,K,device=device,requires_grad=True,dtype=torch.float) # (n,nb,K)
+            loss_ssd_list = []
+            loss_fsd_list = []
             for i in range(K):
-                if torch.isnan(loss_ssd).any():
-                    print("loss_ssd top of loop",loss_ssd)  
-                    torch._assert(False,"Stop!!!!!!!!!")  
                 lambda_i = lambdas[:,i].squeeze() # (n,)
                 # Need lambdas: (n,weights)
                 lambda_ii = lambda_i.unsqueeze(1).repeat(1, b) / b # (n,b)
                
-                if torch.isnan(loss_ssd).any():
-                    print("loss_ssd before calculate Fks",loss_ssd)  
-                    torch._assert(False,"Stop!!!!!!!!!")  
                 (sorted_eta, envs, lambdas_sorted_all), l_fsd, l_ssd = calculate_Fks(-losses, lambda_ii) # (n, nb)
-                if torch.isnan(loss_ssd).any():
-                    print("loss_ssd after calculate Fks",loss_ssd)  
-                    torch._assert(False,"Stop!!!!!!!!!")  
-                
-                if torch.isnan(losses).any():
-                    print("losses",losses)                                   
-                    torch._assert(False,"Stop!!!!!!!!!")  
-                if torch.isnan(sorted_eta).any():
-                    print("sorted_eta",sorted_eta)                                   
-                    torch._assert(False,"Stop!!!!!!!!!")  
-                if torch.isnan(l_fsd).any():
-                    print("l_ssd",l_fsd)                                   
-                    torch._assert(False,"Stop!!!!!!!!!")  
-                if torch.isnan(l_ssd).any():
-                    print("l_ssd",l_ssd)  
-                    torch._assert(False,"Stop!!!!!!!!!")  
-                
-                if torch.isnan(loss_ssd).any():
-                    print("loss_ssd before",loss_ssd)  
-                    torch._assert(False,"Stop!!!!!!!!!")  
-                if torch.isnan(l_ssd).any():
-                    print("l_ssd",l_ssd)  
-                    torch._assert(False,"Stop!!!!!!!!!")  
-                
-                loss_ssd = torch.cat((loss_ssd, l_ssd.unsqueeze(-1)), dim=-1) # add current to buffer
-                
-                if torch.isnan(loss_ssd).any():
-                    print("loss_ssd after",loss_ssd)  
-                    torch._assert(False,"Stop!!!!!!!!!")  
-                    
-                loss_fsd = torch.cat((loss_fsd, l_fsd.unsqueeze(-1)), dim=-1) # add current to buffer
-                if torch.isnan(loss_fsd).any():
-                    print("loss_fsd",loss_fsd)  
-                    torch._assert(False,"Stop!!!!!!!!!")  
-                if torch.isnan(loss_ssd).any():
-                    print("loss_ssd",loss_ssd)  
-                    torch._assert(False,"Stop!!!!!!!!!")  
+                               
+                loss_ssd_list.append(l_ssd)
+                loss_fsd_list.append(l_fsd)
+            
+            # Stack along new dim = -1 (n, nb, K)
+            loss_ssd = torch.stack(loss_ssd_list, dim=-1)
+            loss_fsd = torch.stack(loss_fsd_list, dim=-1)
             F1 = loss_fsd # (n,nb,K)
-            F2 = loss_ssd # (n,nb,K)
-            F2 = F2.clamp(min=-20.0, max=20.0)
-            F1 = F1.clamp(min=-20.0, max=20.0)
-               
+            F2 = loss_ssd # (n,nb,K)              
             
             if self.SSD:
                 diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb, K]
             else:
                 diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb, K]
-            if torch.isnan(diffs).any():
-                print("diffs",diffs)  
-                torch._assert(False,"Stop!!!!!!!!!")  
             penalty = (F.softplus(diffs) + F.softplus(-diffs)).mean()
-            if torch.isnan(penalty).any():
-                print("penalty",penalty)  
-                torch._assert(False,"Stop!!!!!!!!!")  
 
             # Sign for each task
             loss_signs = {"penalty": 1.0, "nll": 1.0, }
@@ -3636,12 +3588,10 @@ class GLSD(ERM):
             self.optimizer.zero_grad()
             loss.backward(retain_graph=True)
             
-            if self.update_count > 440:
-                print(self.update_count, ":", get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), 
+            if False and (self.update_count > 440):
+                print(self.update_count.item(), ":", get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), 
                     loss_gradnorm.item(), nll.item(), penalty.item(), loss.item(), grads.tolist())
 
-            torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=10)
-            torch.nn.utils.clip_grad_norm_(self.gradnorm_balancer.parameters(), max_norm=10)
             self.optimizer.step()
 
             self.update_count += 1
