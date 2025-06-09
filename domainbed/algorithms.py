@@ -2967,11 +2967,10 @@ class GLSD(ERM):
     def set_extra_state(self, state):
         # This function is called from load_state_dict()
         # load_state_dict(state_dict): Copy parameters and buffers from state_dict into this module and its descendants.
-        print(state)
         self.buffer = state["buffer"]
         self.loss_balancer.alpha = state["loss_balancer"]["alpha"]
         self.loss_balancer.running_avgs = state["loss_balancer"]["running_avgs"]
-        self.gradnorm_balancer.load_state_dict(state["loss_balancer"]["gradnorm_balancer"])
+        self.gradnorm_balancer.load_state_dict(state["gradnorm_balancer"])
     
     def update(self, minibatches, unlabeled=None):
     
