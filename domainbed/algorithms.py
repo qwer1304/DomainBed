@@ -3565,7 +3565,7 @@ class GLSD(ERM):
                 
             penalty = (F.softplus(diffs) + F.softplus(-diffs)).mean()
             if torch.isnan(penalty).any():
-                print9"penalty",penalty.tolist())
+                print("penalty",penalty.tolist())
 
             # Sign for each task
             loss_signs = {"penalty": 1.0, "nll": 1.0, }
