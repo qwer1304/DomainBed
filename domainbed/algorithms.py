@@ -2604,7 +2604,7 @@ class GradNormLossBalancer:
         for loss in task_losses:
             self.model.zero_grad()
             loss.backward(retain_graph=True)
-            torch.nn.utils.clip_grad_norm_(self.network.parameters(), max_norm=10)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10)
 
             grad_norm = 0.0
             for p in shared_params:
