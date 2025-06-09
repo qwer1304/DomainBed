@@ -3395,8 +3395,9 @@ class GLSD(ERM):
             one_hot = torch.zeros(n, n, dtype=torch.float32, device=device)
             one_hot[torch.arange(n, device=device), perm] = 1.0
             one_hot.requires_grad_(False) # (n,n)
-            # (n,K-1)            (n,K-1)   (n,n), K' = K + n
+            # (n,K'-1)            (n,K-1)   (n,n), K' = K + n
             lambdas = torch.cat([lambdas, one_hot],dim=1)
+        K = lambdas.size()[1] # update number of lambdas
 
         if not self.hparams["glsd_as_regularizer"]:
             """
@@ -3427,6 +3428,7 @@ class GLSD(ERM):
             lambda_worst = (pi * lambda_pos + (1 - pi) * lambda_min).to(device)
             # (n,K')              (n,K'-1)   (n,)
             lambdas = torch.cat([lambdas,   lambda_worst.unsqueeze(1)],dim=1) # always include the worst affine combination
+            K += 1 # count added lambda
             lambdas = lambdas.detach()
 
             if len(self.buffer) == 0:
@@ -3511,19 +3513,19 @@ class GLSD(ERM):
             return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(),
                 'nll': nll.item(), 'worst_env': int(worst_e_index), **scalar_loss_weights, }      
         else:        
-            lambdas = lambdas.detach() # (n,K-1)
+            lambdas = lambdas.detach() # (n,K)
             loss_ssd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
             loss_fsd = torch.tensor([0.0],device=device,requires_grad=True,dtype=torch.float)
             b = losses.size()[1]
-            for i in range(lambdas.size()[1]):
+            for i in range(K):
                 lambda_i = lambdas[:,i].squeeze() # (n,)
                 # Need lambdas: (n,weights)
                 lambda_ii = lambda_i.unsqueeze(1).repeat(1, b) / b # (n,b)
                 _, l_fsd, l_ssd = calculate_Fks(-losses, lambda_ii)
                 loss_ssd = loss_ssd + l_ssd
                 loss_fsd = loss_fsd + l_fsd
-            loss_ssd = loss_ssd / (lambdas.size()[1] + 1)
-            loss_fsd = loss_fsd / (lambdas.size()[1] + 1)
+            loss_ssd = loss_ssd / K
+            loss_fsd = loss_fsd / K
             F1 = loss_fsd
             F2 = loss_ssd
 
