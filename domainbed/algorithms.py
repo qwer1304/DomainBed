@@ -3468,33 +3468,40 @@ class GLSD(ERM):
             def get_total_grad_norm(model):
                 return torch.sqrt(sum((p.grad**2).sum() for p in model.parameters() if p.grad is not None)).item()
 
+            if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
+                # Combine with GradNorm
+                losses = {"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll}
+                loss_weights, loss_gradnorm = self.gradnorm_balancer.compute_weights_and_loss(losses)
+
+                # Sign for each task
+                loss_signs = {
+                    "fsd": 1.0,
+                    "ssd": 1.0,
+                    "nll": -1.0   # this makes NLL adversarial
+                }
+                # Combine weights
+                signed_weighted_losses = {
+                    name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
+                }
+                # Final total loss
+                nll_relu = F.relu(nll - self.hparams["glsd_nll_threshold_global"])
+                loss = (
+                    sum(signed_weighted_losses.values())
+                    + self.hparams["glsd_nll_lambda"] * nll_relu # this term does not go through gradnorm
+                    + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
+                )
+            else: # don't run gradnorm for several rounds
+                loss_weights = {"fsd": torch.tensor([1.0], device=device), "ssd": torch.tensor([1.0], device=device), "nll": torch.tensor([1.0], device=device)}
+                signed_weighted_losses = {
+                    name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
+                }
+                loss = (
+                    sum(signed_weighted_losses.values())
+                )
+
             # Do the real backward pass on the total loss
             self.optimizer.zero_grad()
-
-            # Combine with GradNorm
-            losses = {"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll}
-            loss_weights, loss_gradnorm = self.gradnorm_balancer.compute_weights_and_loss(losses)
-
-            # Sign for each task
-            loss_signs = {
-                "fsd": 1.0,
-                "ssd": 1.0,
-                "nll": -1.0   # this makes NLL adversarial
-            }
-            # Combine weights
-            signed_weighted_losses = {
-                name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
-            }
-            # Final total loss
-            nll_relu = F.relu(nll - self.hparams["glsd_nll_threshold_global"])
-            loss = (
-                sum(signed_weighted_losses.values())
-                + self.hparams["glsd_nll_lambda"] * nll_relu # this term does not go through gradnorm
-                + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
-            )
-
-            loss.backward(retain_graph=True)
-            
+            loss.backward(retain_graph=True)           
             # Now update both optimizers
             self.optimizer.step()
 
@@ -3511,7 +3518,7 @@ class GLSD(ERM):
             scalar_loss_weights = {'w_'+k: v.item() for k, v in loss_weights.items()}
             # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
             return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(),
-                'nll': nll.item(), 'worst_env': int(worst_e_index), **scalar_loss_weights, }      
+                'nll': nll.item(), 'worst_env': int(worst_e_index), 'loss_gradnorm': loss_gradnorm.item(), **scalar_loss_weights, }      
         else:      
             """
             Use Fk of the different domains as regularizer:
@@ -3544,7 +3551,7 @@ class GLSD(ERM):
             # Sign for each task
             loss_signs = {"penalty": 1.0, "nll": 1.0, }
             losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze()}
-            if self.update_count > 2:
+            if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
                 loss_weights, loss_gradnorm = self.gradnorm_balancer.compute_weights_and_loss(losses)
 
                 # Combine weights
@@ -3573,7 +3580,7 @@ class GLSD(ERM):
             self.update_count += 1
 
             scalar_loss_weights = {'w_'+k: v.item() for k, v in loss_weights.items()}
-            return {'loss': loss.item(), 'penalty': penalty.item(), 'nll': nll.item(), **scalar_loss_weights, }      
+            return {'loss': loss.item(), 'penalty': penalty.item(), 'nll': nll.item(), 'loss_gradnorm': loss_gradnorm.item(), **scalar_loss_weights, }      
 
 class GLSD_SSD(GLSD):
     """GLSD_SSD algorithm """
