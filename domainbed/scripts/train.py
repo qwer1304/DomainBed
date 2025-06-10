@@ -111,10 +111,12 @@ if __name__ == "__main__":
     parser.add_argument('--save_model_every_checkpoint', action='store_true')
     parser.add_argument('--load_from_checkpoint', action='store_true',    
         help='Resume from checkpoint. Provide extra info in checkpoint_... arguments, if needed.')
-    parser.add_argument('--checkpoint_step_file', type=str, default=None,   
-        help='Filename (including path) of the step checkpoint. If not given output_dir is used with the latest checkpoint.')
-    parser.add_argument('--checkpoint_final_file', type=str, default="model.pkl",   
-        help='Filename of the final checkpoint. If not given model.pkl is used. Saved in output dir.')
+    parser.add_argument('--checkpoint_save_step_file_prefix', type=str, default="model_step",   
+        help='Filename prefix of the step save checkpoint in output dir. If not given model_step is used.')
+    parser.add_argument('--checkpoint_save_final_file', type=str, default="model.pkl",   
+        help='Filename of the final save checkpoint. If not given model.pkl is used. Saved in output dir.')
+    parser.add_argument('--checkpoint_load_file', type=str, default=None,   
+        help='Filename (including path) of the load checkpoint. If not provided, latest model_step*.pkl file in output dir is used.')
     parser.add_argument('--checkpoint_use_current_args', action='store_true',    
         help='Use args from this command line instead from those in the checkpoint.')
     parser.add_argument('--checkpoint_dont_reload_optimizer', action='store_true',    
@@ -135,10 +137,10 @@ if __name__ == "__main__":
             latest = max(files, key=os.path.getmtime)
             return latest
 
-        if args.checkpoint_step_file is None:
+        if args.checkpoint_load_file is None:
             filename = os.path.join(args.output_dir, 'model_step*.pkl')
         else:
-            filename = args.checkpoint_step_file # filename + path provided
+            filename = args.checkpoint_load_file # filename + path provided
         filename = latest_file(filename)
         if filename is not None:
             if args.checkpoint_use_current_args:
@@ -147,11 +149,12 @@ if __name__ == "__main__":
                args, hparams, algorithm_dict, start_step, otimizer_dict = load_checkpoint(filename)
         else:
             raise ValueError("No checkpoint file.")
+        print("Loading from", filename)
             
         from_checkpoint = True
     else:
-        if (args.checkpoint_step_file is not None) or (args.checkpoint_use_current_args):
-            raise ValueError("Checkpoint related options given, but loading from checkpoint not requested.")
+        if (args.checkpoint_load_file is not None) or (args.checkpoint_use_current_args):
+            raise ValueError("Checkpoint load related options given, but loading from checkpoint not requested.")
         start_step = 0
         algorithm_dict = None
         optimizer_dict = None
@@ -362,9 +365,9 @@ if __name__ == "__main__":
             checkpoint_vals = collections.defaultdict(lambda: [])
 
             if args.save_model_every_checkpoint:
-                save_checkpoint(f'model_step{step}.pkl')
+                save_checkpoint(f'{args.checkpoint_save_step_file_prefix}{step}.pkl')
 
-    save_checkpoint(args.checkpoint_final_file)
+    save_checkpoint(args.checkpoint_save_final_file)
 
     with open(os.path.join(args.output_dir, 'done'), 'w') as f:
         f.write('done')
