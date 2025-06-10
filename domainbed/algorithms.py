@@ -3026,48 +3026,61 @@ class GLSD(ERM):
 
             return (sorted_eta, envs, lambdas_sorted_all), F1, F2
 
-        def dominating_2nd_cdf(x, tau=1.0):
+        def dominating_1st_cdf(x, tau=1.0):
             """
-            Second-order dominating cdf.
+            First-order dominating cdf.
                 x: (n,samples) of n distributions, which we want to maximize.
             Returns:
                 The index of dominating cdf (negative means it was found heuristically)
-                Per environment F1
                 sorted_eta eta for which Fk were computed 
+                env which each eta came from
             """    
             
             x, lambdas = x
             device = x.device
             n,b = x.size()
-            (sorted_eta, _, _), F1, F2 = calculate_Fks(x)
+            (sorted_eta, envs, _), F1, _ = calculate_Fks(x)
+           
+            diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, b]
+            
+            # i is dominating j if T[i,k] <= T[j,k] for all k and there's some m s.t. T[i,m] < T[j,m]
+            # T[i] <= T[j] elementwise for all j != i
+
+            # Find i such that T[i] <= T[j] for all j != i and some T[i,k] < T[j,k]            
+            diffs = torch.clamp(diffs, max=0) # leave only etas where i is dominating
+            scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
+            # Softmax over dominated scores to get positive weights sum to 1
+            pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0                     
+            return pi, sorted_eta, envs
+
+        def dominating_2nd_cdf(x, tau=1.0):
+            """
+            Second-order dominating cdf.
+            First-order dominating cdf.
+                x: samples: (n,samples) of n distributions, which we want to maximize.
+            Returns:
+                The index of dominating cdf
+                sorted_eta eta for which Fk were computed 
+                envs which each eta came from
+            """    
+            
+            device = x.device
+            n,b = x.size()
+            (sorted_eta, envs, _), F1, F2 = calculate_Fks(x)
            
             diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, b]
             
             # i is dominating j if T[i,k] <= T[j,k] for all k and there's some m s.t. T[i,m] < T[j,m]
             # T[i] <= T[j] elementwise for all j != i
             # disregard self-diff, disregard F2(0) since it's set to 0 for all environments
-            all_less_or_equal = torch.logical_or((diffs[:,:,1:] <= 0).all(dim=2), torch.eye(n,dtype=torch.bool,device=device)) 
-            some_less = torch.logical_or((diffs[:,:,1:] < 0).any(dim=2), torch.eye(n,dtype=torch.bool,device=device)) 
 
             # Find i such that T[i] <= T[j] for all j != i and some T[i,k] < T[j,k]
-            satisfying_i = torch.where(torch.logical_and(all_less_or_equal.all(dim=1),some_less.all(dim=1)))[0]
-            """
-            if satisfying_i.nelement() == 0: 
-                diffs = torch.clamp(diffs, max=0) # leave only etas where i is dominating
-                scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
-                # Softmax over dominating scores to get positive weights sum to 1
-                pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0
-            else:
-                pi = torch.zeros(n,device=device)
-                pi[satisfying_i] = 1
-            """
             
-            diffs = torch.clamp(diffs, max=0) # leave only etas where i is dominating
+            diffs = torch.clamp(diffs, max=0) # leave only etas where i is dominated
             scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
             # Softmax over dominated scores to get positive weights sum to 1
-            pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0
-                       
-            return pi, F1, sorted_eta
+            pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0                      
+            return pi, sorted_eta, envs
 
         def dominated_1st_cdf(x, tau=1.0):
             """
@@ -3088,21 +3101,6 @@ class GLSD(ERM):
             
             # i is dominated by j if T[i,k] >= T[j,k] for all k and there's some m s.t. T[i,m] > T[j,m]
             # T[i] >= T[j] elementwise for all j != i
-            all_greater_or_equal = (diffs[:,:,1:] >= 0).all(dim=2) 
-            some_greater = (diffs[:,:,1:] > 0).any(dim=2) 
-
-            # Find i such that T[i] >= T[j] for all j != i and some T[i,k] > T[j,k]
-            satisfying_i = torch.where(torch.logical_and(all_greater_or_equal.all(dim=1),some_greater.all(dim=1)))[0]
-            """
-            if satisfying_i.nelement() == 0: 
-                diffs = torch.clamp(diffs, min=0) # leave only etas where i is dominated
-                scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
-                # Softmax over dominated scores to get positive weights sum to 1
-                pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0
-            else:
-                pi = torch.zeros(n,device=device)
-                pi[satisfying_i] = 1
-            """
             
             diffs = torch.clamp(diffs, min=0) # leave only etas where i is dominated
             scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
@@ -3130,21 +3128,6 @@ class GLSD(ERM):
             # i is dominated by j if T[i,k] >= T[j,k] for all k and there's some m s.t. T[i,m] > T[j,m]
             # T[i] >= T[j] elementwise for all j != i
             # disregard self-diff, disregard F2(0) since it's set to 0 for all environments
-            all_greater_or_equal = torch.logical_or((diffs[:,:,1:] >= 0).all(dim=2), torch.eye(n,dtype=torch.bool,device=device)) 
-            some_greater = torch.logical_or((diffs[:,:,1:] > 0).any(dim=2), torch.eye(n,dtype=torch.bool,device=device)) 
-
-            # Find i such that T[i] >= T[j] for all j != i and some T[i,k] > T[j,k]
-            satisfying_i = torch.where(torch.logical_and(all_greater_or_equal.all(dim=1),some_greater.all(dim=1)))[0]
-            """
-            if satisfying_i.nelement() == 0: 
-                diffs = torch.clamp(diffs, min=0) # leave only etas where i is dominated
-                scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
-                # Softmax over dominated scores to get positive weights sum to 1
-                pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0
-            else:
-                pi = torch.zeros(n,device=device)
-                pi[satisfying_i] = 1
-            """
             
             diffs = torch.clamp(diffs, min=0) # leave only etas where i is dominated
             scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
@@ -3558,7 +3541,9 @@ class GLSD(ERM):
                 diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb, K]
             else:
                 diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb, K]
-            penalty = diffs.abs().mean()
+            penalty = diffs.abs()
+            nnz_penalty = (penalty > 0).sum().detach()
+            penalty = penalty.sum() / nnz_penalty
             #penalty = (F.softplus(diffs) + F.softplus(-diffs)).mean()
 
             # Sign for each task
