@@ -3561,7 +3561,6 @@ class GLSD(ERM):
             else:
                 diffs = F1.unsqueeze(2) - F1.unsqueeze(1) # shape: [nb, K, K]
             penalty = diffs.abs()
-            print(F1)
             #penalty = F.softplus(diffs) + F.softplus(-diffs)
             nnz_penalty = (penalty > 0).sum().detach()
             nnz_penalty = 1 if nnz_penalty > 0 else 1
