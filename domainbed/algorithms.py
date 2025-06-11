@@ -3545,7 +3545,6 @@ class GLSD(ERM):
                 _, l_fsd, l_ssd = calculate_Fks(sorted_eta.unsqueeze(0), lambdas_sorted_all.unsqueeze(0)) # (1, nb)
                 l_fsd = l_fsd.squeeze() # (nb,)
                 l_ssd = l_ssd.squeeze() # (nb,)
-                print(l_fsd.size(), l_fsd)
                                
                 loss_ssd_list.append(l_ssd)
                 loss_fsd_list.append(l_fsd)
@@ -3554,7 +3553,8 @@ class GLSD(ERM):
             loss_ssd = torch.stack(loss_ssd_list, dim=-1)
             loss_fsd = torch.stack(loss_fsd_list, dim=-1)
             F1 = loss_fsd # (nb,K)
-            F2 = loss_ssd # (nb,K)              
+            F2 = loss_ssd # (nb,K)       
+            print(F1.size(), F1)
             
             if self.SSD:
                 diffs = F2.unsqueeze(2) - F2.unsqueeze(1) # shape: [nb, K, K]
