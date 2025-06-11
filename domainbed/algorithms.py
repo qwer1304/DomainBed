@@ -3546,7 +3546,6 @@ class GLSD(ERM):
                 _, l_fsd, l_ssd = calculate_Fks(sorted_eta.unsqueeze(0), lambda_ii.unsqueeze(0)) # (1, nb)
                 l_fsd = l_fsd.squeeze() # (nb,)
                 l_ssd = l_ssd.squeeze() # (nb,)
-                print(l_fsd)
                                
                 loss_ssd_list.append(l_ssd)
                 loss_fsd_list.append(l_fsd)
