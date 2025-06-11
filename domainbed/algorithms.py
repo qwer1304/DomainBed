@@ -3562,7 +3562,7 @@ class GLSD(ERM):
             penalty = diffs.abs()
             #penalty = F.softplus(diffs) + F.softplus(-diffs)
             nnz_penalty = (penalty > 0).sum().detach()
-            print(diffs.size(), nnz_penalty)
+            nnz_penalty = 1 if nnz_penalty > 0 else 1
             penalty = penalty.sum() / nnz_penalty
 
             # Sign for each task
