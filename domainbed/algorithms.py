@@ -3554,7 +3554,6 @@ class GLSD(ERM):
             loss_fsd = torch.stack(loss_fsd_list, dim=-1)
             F1 = loss_fsd # (nb,K)
             F2 = loss_ssd # (nb,K)       
-            print(F1.size(), F1)
             
             if self.SSD:
                 diffs = F2.unsqueeze(2) - F2.unsqueeze(1) # shape: [nb, K, K]
@@ -3563,6 +3562,7 @@ class GLSD(ERM):
             penalty = diffs.abs()
             #penalty = F.softplus(diffs) + F.softplus(-diffs)
             nnz_penalty = (penalty > 0).sum().detach()
+            print(diffs.size(), nnz_penalty)
             penalty = penalty.sum() / nnz_penalty
 
             # Sign for each task
