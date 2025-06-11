@@ -3543,7 +3543,11 @@ class GLSD(ERM):
                 # Need lambdas: (n,weights)
                 lambda_ii = lambda_i.unsqueeze(1).repeat(1, b) / b # (n,b)
                
-                (sorted_eta, envs, lambdas_sorted_all), l_fsd, l_ssd = calculate_Fks(-u(losses,lambda_ii), lambda_ii) # (n, nb)
+                if False:
+                    (sorted_eta, envs, lambdas_sorted_all), l_fsd, l_ssd = calculate_Fks(-u(losses,lambda_ii), lambda_ii) # (n, nb)
+                else:
+                    l_fsd = torch.sort(u(losses,lambda_ii).reshape(-1)) # (nb,)
+                    l_ssd = l_fsd
                                
                 loss_ssd_list.append(l_ssd)
                 loss_fsd_list.append(l_fsd)
