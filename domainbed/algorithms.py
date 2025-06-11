@@ -3523,6 +3523,17 @@ class GLSD(ERM):
             4. Normalize by the number of configurations (K).
             5. Use this as a penalty (i.e., we want all Fks to be the same for all etas)
             """
+            def E(x, weights, keepdim=False):
+                """ Calculates expectation of sample with signed distribution
+                    x: samples, (n,b)
+                    weights: probabilities, (n,b)
+                """
+                e = (x * weights).sum(1, keepdim=keepdim)
+                return e
+                
+            def u(x, weights):
+                return (x - E(x,weights,keepdim=True)).square()
+                
             lambdas = lambdas.detach() # (n,K)
             b = losses.size()[1]
             loss_ssd_list = []
@@ -3532,7 +3543,7 @@ class GLSD(ERM):
                 # Need lambdas: (n,weights)
                 lambda_ii = lambda_i.unsqueeze(1).repeat(1, b) / b # (n,b)
                
-                (sorted_eta, envs, lambdas_sorted_all), l_fsd, l_ssd = calculate_Fks(-losses, lambda_ii) # (n, nb)
+                (sorted_eta, envs, lambdas_sorted_all), l_fsd, l_ssd = calculate_Fks(-u(losses,lambda_ii), lambda_ii) # (n, nb)
                                
                 loss_ssd_list.append(l_ssd)
                 loss_fsd_list.append(l_fsd)
@@ -3548,9 +3559,9 @@ class GLSD(ERM):
             else:
                 diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb, K]
             penalty = diffs.abs()
+            #penalty = F.softplus(diffs) + F.softplus(-diffs)
             nnz_penalty = (penalty > 0).sum().detach()
             penalty = penalty.sum() / nnz_penalty
-            #penalty = (F.softplus(diffs) + F.softplus(-diffs)).mean()
 
             # Sign for each task
             loss_signs = {"penalty": 1.0, "nll": 1.0, }
