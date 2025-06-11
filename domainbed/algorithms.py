@@ -3542,6 +3542,7 @@ class GLSD(ERM):
                 lambda_i = lambdas[:,i].squeeze() # (n,)
                 # Need lambdas: (n,weights)
                 (sorted_eta, envs, lambdas_sorted_all), _, _ = calculate_Fks(-losses) # (n, nb)
+                print(sorted_eta)
                 _, l_fsd, l_ssd = calculate_Fks(sorted_eta.unsqueeze(0), lambdas_sorted_all.unsqueeze(0)) # (1, nb)
                 l_fsd = l_fsd.squeeze() # (nb,)
                 l_ssd = l_ssd.squeeze() # (nb,)
