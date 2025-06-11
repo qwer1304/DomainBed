@@ -3031,9 +3031,11 @@ class GLSD(ERM):
             First-order dominating cdf.
                 x: (n,samples) of n distributions, which we want to maximize.
             Returns:
-                The index of dominating cdf (negative means it was found heuristically)
-                sorted_eta eta for which Fk were computed 
-                env which each eta came from
+                pi: a probability vector (n,) which gives for each domain i 
+                    the probability of being assigned the positive lambda of an affine combination
+                    (lambdas = (pi * lambda_pos + (1 - pi) * lambda_min)
+                sorted_eta: eta for which Fk were computed 
+                env: env each eta came from
             """    
             
             x, lambdas = x
@@ -3049,24 +3051,25 @@ class GLSD(ERM):
             # Find i such that T[i] <= T[j] for all j != i and some T[i,k] < T[j,k]            
             diffs = torch.clamp(diffs, max=0) # leave only etas where i is dominating
             scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
-            # Softmax over dominated scores to get positive weights sum to 1
+            # Softmax over dominating scores to get positive weights sum to 1
             pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0                     
             return pi, sorted_eta, envs
 
         def dominating_2nd_cdf(x, tau=1.0):
             """
             Second-order dominating cdf.
-            First-order dominating cdf.
                 x: samples: (n,samples) of n distributions, which we want to maximize.
             Returns:
-                The index of dominating cdf
-                sorted_eta eta for which Fk were computed 
-                envs which each eta came from
+                pi: a probability vector (n,) which gives for each domain i 
+                    the probability of being assigned the positive lambda of an affine combination
+                    (lambdas = (pi * lambda_pos + (1 - pi) * lambda_min)
+                sorted_eta: eta for which Fk were computed 
+                env: env each eta came from
             """    
             
             device = x.device
             n,b = x.size()
-            (sorted_eta, envs, _), F1, F2 = calculate_Fks(x)
+            (sorted_eta, envs, _), _, F2 = calculate_Fks(x)
            
             diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, b]
             
@@ -3078,7 +3081,7 @@ class GLSD(ERM):
             
             diffs = torch.clamp(diffs, max=0) # leave only etas where i is dominated
             scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
-            # Softmax over dominated scores to get positive weights sum to 1
+            # Softmax over dominating scores to get positive weights sum to 1
             pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0                      
             return pi, sorted_eta, envs
 
@@ -3087,9 +3090,11 @@ class GLSD(ERM):
             First-order dominated cdf.
                 x: (n,samples) of n distributions, which we want to maximize.
             Returns:
-                The index of dominated cdf (negative means it was found heuristically)
-                sorted_eta eta for which Fk were computed 
-                env which each eta came from
+                pi: a probability vector (n,) which gives for each domain i 
+                    the probability of being assigned the positive lambda of an affine combination
+                    (lambdas = (pi * lambda_pos + (1 - pi) * lambda_min)
+                sorted_eta: eta for which Fk were computed 
+                env: env each eta came from
             """    
             
             x, lambdas = x
@@ -3111,17 +3116,18 @@ class GLSD(ERM):
         def dominated_2nd_cdf(x, tau=1.0):
             """
             Second-order dominated cdf.
-            First-order dominated cdf.
                 x: samples: (n,samples) of n distributions, which we want to maximize.
             Returns:
-                The index of dominated cdf
-                sorted_eta eta for which Fk were computed 
-                envs which each eta came from
+                pi: a probability vector (n,) which gives for each domain i 
+                    the probability of being assigned the positive lambda of an affine combination
+                    (lambdas = (pi * lambda_pos + (1 - pi) * lambda_min)
+                sorted_eta: eta for which Fk were computed 
+                env: env each eta came from
             """    
             
             device = x.device
             n,b = x.size()
-            (sorted_eta, envs, _), F1, F2 = calculate_Fks(x)
+            (sorted_eta, envs, _), _, F2 = calculate_Fks(x)
            
             diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, b]
             
