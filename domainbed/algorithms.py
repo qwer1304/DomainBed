@@ -3541,27 +3541,24 @@ class GLSD(ERM):
             for i in range(K):
                 lambda_i = lambdas[:,i].squeeze() # (n,)
                 # Need lambdas: (n,weights)
-                lambda_ii = lambda_i.unsqueeze(1).repeat(1, b) / b # (n,b)
-               
-                if False:
-                    (sorted_eta, envs, lambdas_sorted_all), l_fsd, l_ssd = calculate_Fks(-u(losses,lambda_ii), lambda_ii) # (n, nb)
-                else:
-                    l_fsd = torch.sort(u(losses,lambda_ii).reshape(-1)).values # (nb,)
-                    l_ssd = l_fsd
+                (sorted_eta, envs, lambdas_sorted_all), _, _ = calculate_Fks(-losses) # (n, nb)
+                _, l_fsd, l_ssd = calculate_Fks(sorted_eta, lambdas_sorted_all) # (1, nb)
+                l_fsd = l_fsd.squeeze() # (nb,)
+                l_ssd = l_ssd.squeeze() # (nb,)
                                
                 loss_ssd_list.append(l_ssd)
                 loss_fsd_list.append(l_fsd)
             
-            # Stack along new dim = -1 (n, nb, K)
+            # Stack along new dim = -1 (nb, K)
             loss_ssd = torch.stack(loss_ssd_list, dim=-1)
             loss_fsd = torch.stack(loss_fsd_list, dim=-1)
-            F1 = loss_fsd # (n,nb,K)
-            F2 = loss_ssd # (n,nb,K)              
+            F1 = loss_fsd # (nb,K)
+            F2 = loss_ssd # (nb,K)              
             
             if self.SSD:
-                diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, nb, K]
+                diffs = F2.unsqueeze(2) - F2.unsqueeze(1) # shape: [nb, K, K]
             else:
-                diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, nb, K]
+                diffs = F1.unsqueeze(2) - F1.unsqueeze(1) # shape: [nb, K, K]
             penalty = diffs.abs()
             #penalty = F.softplus(diffs) + F.softplus(-diffs)
             nnz_penalty = (penalty > 0).sum().detach()
@@ -3570,7 +3567,7 @@ class GLSD(ERM):
             # Sign for each task
             loss_signs = {"penalty": 1.0, "nll": 1.0, }
             losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze()}
-            if False and self.update_count > self.hparams["glsd_gradnorm_warmup"]:
+            if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
                 loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses)
 
                 # Combine weights
@@ -3583,7 +3580,7 @@ class GLSD(ERM):
                     + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
                 )
             else: # don't run gradnorm for several rounds
-                loss_weights = {"penalty": torch.tensor([1.0], device=device), "nll": torch.tensor([self.hparams["glsd_nll_lambda"]], device=device)}
+                loss_weights = {"penalty": torch.tensor([1.0], device=device), "nll": torch.tensor([1.0], device=device)}
                 signed_weighted_losses = {
                     name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
                 }
