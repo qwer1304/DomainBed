@@ -3546,9 +3546,10 @@ class GLSD(ERM):
                 if False:
                     (sorted_eta, envs, lambdas_sorted_all), l_fsd, l_ssd = calculate_Fks(-u(losses,lambda_ii), lambda_ii) # (n, nb)
                 else:
+                    uu = u(losses,lambda_ii).reshape(-1)
+                    print(uu.size(), uu)
                     l_fsd = torch.sort(u(losses,lambda_ii).reshape(-1)) # (nb,)
                     l_ssd = l_fsd
-                    print(l_fsd.size(), l_fsd)
                                
                 loss_ssd_list.append(l_ssd)
                 loss_fsd_list.append(l_fsd)
