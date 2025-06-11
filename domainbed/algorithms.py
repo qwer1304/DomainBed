@@ -3582,7 +3582,7 @@ class GLSD(ERM):
                     + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
                 )
             else: # don't run gradnorm for several rounds
-                loss_weights = {"penalty": torch.tensor([0.001], device=device), "nll": torch.tensor([1.0], device=device)}
+                loss_weights = {"penalty": torch.tensor([1.0], device=device), "nll": torch.tensor([1.0], device=device)}
                 signed_weighted_losses = {
                     name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
                 }
