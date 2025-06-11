@@ -44,10 +44,12 @@ if __name__ == "__main__":
             "model_dict": copy.deepcopy(algorithm.state_dict()),
             "start_step": start_step,
             "optimizer_dict": copy.deepcopy(algorithm.optimizer.state_dict()),
-            "rng_state": torch.get_rng_state(),
-            "cuda_rng_state": cuda_rng_state,
-            "numpy_rng_state": np.random.get_state(),
-            "python_rng_state": random.getstate(),
+            "rng_dict": {
+                "rng_state": torch.get_rng_state(),
+                "cuda_rng_state": cuda_rng_state,
+                "numpy_rng_state": np.random.get_state(),
+                "python_rng_state": random.getstate(),
+            },
         }
         torch.save(save_dict, checkpoint_file) # Saves an object to a disk file.
         
@@ -66,13 +68,8 @@ if __name__ == "__main__":
         algorithm_dict = save_dict['model_dict']
         start_step = save_dict['start_step']
         optimizer_dict = save_dict['optimizer_dict']
-        # Restore RNG states
-        torch.set_rng_state(save_dict['rng_state'].cpu())
-        if torch.cuda.is_available():
-            torch.cuda.set_rng_state_all([t.cpu() for t in save_dict['cuda_rng_state']])
-        np.random.set_state(save_dict['numpy_rng_state'])
-        random.setstate(save_dict['python_rng_state'])
-        
+        rng_dict = save_dict['rng_dict']
+
         if False: # To make this work need to distinguish default values vs user passed ones
             # Merge: command-line overrides checkpoint
             cmd_args_dict = vars(args)
@@ -81,7 +78,7 @@ if __name__ == "__main__":
             merged_args_dict = save_dict['args']
         new_args = argparse.Namespace(**merged_args_dict)
         
-        return new_args, hparams, algorithm_dict, start_step, optimizer_dict
+        return new_args, hparams, algorithm_dict, start_step, optimizer_dict, rng_dict
 
     parser = argparse.ArgumentParser(description='Domain generalization')
     parser.add_argument('--data_dir', type=str)
@@ -125,6 +122,8 @@ if __name__ == "__main__":
         help='Column width of the print row.')
     parser.add_argument('--print_results_of_last_step', action='store_true',    
         help='Print the last result instead of averaging over all steps from the last print.')
+    parser.add_argument('--set_seed_every_epoch', action='store_true',    
+        help='Set seeds to the current epoch every epoch start.')
     args = parser.parse_args()
 
     # If we ever want to implement checkpointing, just persist these values
@@ -144,9 +143,9 @@ if __name__ == "__main__":
         filename = latest_file(filename)
         if filename is not None:
             if args.checkpoint_use_current_args:
-                _, hparams, algorithm_dict, start_step, otimizer_dict = load_checkpoint(filename)
+                _, hparams, algorithm_dict, start_step, otimizer_dict, rng_dict = load_checkpoint(filename)
             else:
-               args, hparams, algorithm_dict, start_step, otimizer_dict = load_checkpoint(filename)
+               args, hparams, algorithm_dict, start_step, otimizer_dict, rng_dict = load_checkpoint(filename)
         else:
             raise ValueError("No checkpoint file.")
         print("Loading from", filename)
@@ -158,6 +157,7 @@ if __name__ == "__main__":
         start_step = 0
         algorithm_dict = None
         optimizer_dict = None
+        rng_dict = None
         from_checkpoint = False
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -177,6 +177,28 @@ if __name__ == "__main__":
     for k, v in sorted(vars(args).items()):
         print('\t{}: {}'.format(k, v))
 
+    if torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
+
+    # RNG
+    if not from_checkpoint:
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
+        if device=="cuda":
+            torch.cuda.manual_seed_all(args.seed)
+    else:
+        # Restore RNG states
+        torch.set_rng_state(rng_dict['rng_state'].cpu())
+        if device=="cuda":
+            torch.cuda.set_rng_state_all([t.cpu() for t in rng_dict['cuda_rng_state']])
+        np.random.set_state(rng_dict['numpy_rng_state'])
+        random.setstate(rng_dict['python_rng_state'])
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+        
     if not from_checkpoint:
         if args.hparams_seed == 0:
             hparams = hparams_registry.default_hparams(args.algorithm, args.dataset)
@@ -189,19 +211,6 @@ if __name__ == "__main__":
     print('HParams:')
     for k, v in sorted(hparams.items()):
         print('\t{}: {}'.format(k, v))
-
-    if not from_checkpoint:
-        random.seed(args.seed)
-        np.random.seed(args.seed)
-        torch.manual_seed(args.seed)
-    #torch.use_deterministic_algorithms(True)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-    if torch.cuda.is_available():
-        device = "cuda"
-    else:
-        device = "cpu"
 
     if args.dataset in vars(datasets):
         dataset = vars(datasets)[args.dataset](args.data_dir,
@@ -312,6 +321,15 @@ if __name__ == "__main__":
     last_results_keys = None
     for step in range(start_step, n_steps):
         step_start_time = time.time()
+        epoch =  step / steps_per_epoch
+        # Set seed every epoch start if requested to ensure 
+        if args.set_seed_every_epoch and (epoch % 1 == 0):
+            random.seed(int(epoch))
+            np.random.seed(int(epoch))
+            torch.manual_seed(int(epoch))
+            if device=="cuda":
+                torch.cuda.manual_seed_all(int(epoch))
+
         minibatches_device = [(x.to(device), y.to(device))
             for x,y in next(train_minibatches_iterator)]
         if args.task == "domain_adaptation":

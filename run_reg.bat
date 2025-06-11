@@ -6,4 +6,5 @@ python -m domainbed.scripts.train^
        --checkpoint_freq 1^
        --test_env 4^
        --steps 2500^
-       --hparams "{\"glsd_as_regularizer\": true, \"glsd_dominate_all_domains\": true}"
+       --hparams "{\"glsd_as_regularizer\": true, \"glsd_dominate_all_domains\": true}"^
+       --set_seed_every_epoch
