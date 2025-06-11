@@ -3548,6 +3548,7 @@ class GLSD(ERM):
                 else:
                     l_fsd = torch.sort(u(losses,lambda_ii).reshape(-1)) # (nb,)
                     l_ssd = l_fsd
+                    print(l_fsd.size(), l_fsd)
                                
                 loss_ssd_list.append(l_ssd)
                 loss_fsd_list.append(l_fsd)
