@@ -3544,7 +3544,7 @@ class GLSD(ERM):
                 lambda_ii = lambda_i.unsqueze(1).repeat(1,b) # (n,b)
                 (sorted_eta, envs, _), _, _ = calculate_Fks(u(-losses,lambda_ii/b)) # (nb,)
                 lambda_ii = torch.tensor([lambda_i[int(e.item())] for e in envs], device=device) / sorted_eta.size()[0] # (nb,)
-                _, l_fsd, l_ssd = calculate_Fks(u(sorted_eta.unsqueeze(0), lambda_ii.unsqueeze(0)) # (1, nb)
+                _, l_fsd, l_ssd = calculate_Fks(sorted_eta.unsqueeze(0), lambda_ii.unsqueeze(0)) # (1, nb)
                 l_fsd = l_fsd.squeeze() # (nb,)
                 l_ssd = l_ssd.squeeze() # (nb,)
                                
