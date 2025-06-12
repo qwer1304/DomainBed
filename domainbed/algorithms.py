@@ -2578,6 +2578,7 @@ class GradNormLossBalancer:
         else:
             mtau = sum([v for v in tau.values()]) / len(self.task_names)
             tau = {k: v / mtau for k, v in tau.items()} 
+        self.tau = tau
 
     def parameters(self):
         # So you can pass these to the optimizer
@@ -2624,7 +2625,7 @@ class GradNormLossBalancer:
         # Step 3: Compute inverse training rates
         loss_ratios = torch.stack([losses_dict[k] / self.initial_losses[k] for k in self.task_names])
 
-        loss_rates = (loss_ratios / loss_ratios.mean().detach()) / tau 
+        loss_rates = (loss_ratios / loss_ratios.mean().detach()) / self.tau 
         if not self.smoothing:        
             loss_rates = loss_rates ** self.alpha
             smoothed_rates = loss_rates
