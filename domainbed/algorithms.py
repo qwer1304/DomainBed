@@ -3044,7 +3044,6 @@ class GLSD(ERM):
                 env: env each eta came from
             """    
             
-            device = x.device
             n,b = x.size()
             (sorted_eta, envs, _), F1, F2 = calculate_Fks(x)
             if order == 1:
@@ -3444,7 +3443,7 @@ class GLSD(ERM):
             """
             # Here the domains are non-weighted yet
             b = losses.size()[1]
-            lambda_ii = torch.ones_like(losses) / b # (n,b), requires_grad=False
+            lambda_ii = torch.ones_like(losses) / b # (n,b), requires_grad=False, device=losses.device()
             ulosses = u(-losses,lambda_ii)
             pi_worst, _, _ = extreme_affine_combination(ulosses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
             pi_best, _, _  = extreme_affine_combination(ulosses, dominating=True,  order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
@@ -3457,6 +3456,7 @@ class GLSD(ERM):
 
             # (n,2)                (n,)          (n,)
             lambdas = torch.stack((lambda_worst, lambda_best) ,dim=-1)
+            print(pi_worst.device(), pi_best.device(), lambda_worst.device(), lambda_best.device(), lambdas.device(), lambdas.size())
             
         else:
             torch._assert(False, f'Unknown method {self.hparams["glsd_as_regularizer"]}')
@@ -3487,7 +3487,7 @@ class GLSD(ERM):
             if self.SSD:
                 Fk = loss_ssd # (nb,K)
             else:
-                Fk = loss_ssd # (nb,K)       
+                Fk = loss_fsd # (nb,K)       
             
             diffs = Fk.unsqueeze(2) - Fk.unsqueeze(1) # shape: [nb, K, K]
             penalty = diffs.abs()
