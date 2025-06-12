@@ -2902,8 +2902,8 @@ class GLSD(ERM):
         rb = DictCircularBuffer(capacity, spec, device=device)
         self.buffer = rb
         self.register_buffer('update_count', torch.tensor([0]))
-        self.register_buffer('pi', torch.tensor([[1]+[0]*(num_domains-1)]*2))
-        self.register_buffer('pi_prev', torch.tensor([[0]*(num_domains-1)+[1]]*2))
+        self.register_buffer('pi', torch.rand(num_domains,2) / sum(0,keepdim=True))
+        self.register_buffer('pi_prev', torch.rand(num_domains,2) / sum(0,keepdim=True))
         self.register_buffer('margin', torch.tensor([0.2]))
         self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None), ("nll",None)], alpha=0.99)
         if not hparams["glsd_as_regularizer"]:
@@ -3461,7 +3461,6 @@ class GLSD(ERM):
             b = losses.size()[1]
             loss_ssd_list = []
             loss_fsd_list = []
-            print(lambdas)
             for i in range(K):
                 lambda_i = lambdas[:,i].squeeze() # (n,)
                 # Need lambdas: (n,weights)
