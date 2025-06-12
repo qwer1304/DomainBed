@@ -2887,6 +2887,22 @@ class CombinedOptimizer:
 
 class GLSD(ERM):
     """GLSD algorithm """
+
+    def init_optimizer(self):
+        if self.hparams["glsd_optimizer"] == "sgd":
+            base_optimizer_cls=torch.optim.SGD
+            extra_pars = {"momentun": 0.9}
+        else:
+            base_optimizer_cls=torch.optim.Adam
+            extra_pars = {}
+            
+        model_kwargs = {"lr": 1.0*self.hparams["lr"], "weight_decay": self.hparams['weight_decay'], **extra_pars}        
+        gradnorm_kwargs = {"lr": 10.0*self.hparams["lr"], "weight_decay": self.hparams['weight_decay'], **extra_pars}        
+        
+        return CombinedOptimizer(self.network.parameters(), self.gradnorm_balancer.parameters(), 
+                base_optimizer_cls=base_optimizer_cls, model_kwargs=model_kwargs, gradnorm_kwargs=gradnorm_kwargs)
+    
+
     def __init__(self, SSD, input_shape, num_classes, num_domains, hparams):
         super(GLSD, self).__init__(input_shape, num_classes, num_domains,
                                   hparams)
@@ -2934,18 +2950,7 @@ class GLSD(ERM):
                 alpha=hparams["glsd_gradnorm_alpha"], device=device, smoothing=hparams["glsd_gradnorm_smoothing"], 
                 tau=tau)
 
-        if self.hparams["glsd_optimizer"] == "sgd":
-            base_optimizer_cls=torch.optim.SGD
-            extra_pars = {"momentun": 0.9}
-        else:
-            base_optimizer_cls=torch.optim.Adam
-            extra_pars = {}
-            
-        model_kwargs = {"lr": 1.0*self.hparams["lr"], "weight_decay": self.hparams['weight_decay'], **extra_pars}        
-        gradnorm_kwargs = {"lr": 10.0*self.hparams["lr"], "weight_decay": self.hparams['weight_decay'], **extra_pars}        
-        
-        self.optimizer = CombinedOptimizer(self.network.parameters(), self.gradnorm_balancer.parameters(), 
-                base_optimizer_cls=base_optimizer_cls, model_kwargs=model_kwargs, gradnorm_kwargs=gradnorm_kwargs)
+        self.optimizer = init_optimizer(self)
        
         self.glsd_after_load_state_count = 0
 
@@ -3549,6 +3554,10 @@ class GLSD(ERM):
         else: # don't run gradnorm for several rounds
             if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
                 losses = self.loss_balancer.update(losses)
+            elif self.update_count == self.hparams["glsd_gradnorm_warmup"]:
+                self.optimizer = self.init_optimizer()
+                losses = self.loss_balancer.update(losses)
+
             loss_weights = {"penalty": torch.tensor([self.hparams['glsd_nll_lambda']], device=device), "nll": torch.tensor([1.0], device=device)}
             signed_weighted_losses = {
                 name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
