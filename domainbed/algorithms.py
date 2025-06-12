@@ -2627,7 +2627,6 @@ class GradNormLossBalancer:
 
         normalized_ratios = loss_ratios / loss_ratios.mean().detach()
         loss_rates = normalized_ratios / self.tau
-        print(loss_rates)
         
         if not self.smoothing:        
             loss_rates = loss_rates ** self.alpha
@@ -2652,6 +2651,7 @@ class GradNormLossBalancer:
         normalized_weights = {k: normed_weights[i].detach().to(self.device) \
                 for i, k in enumerate(self.task_names)
         }
+        print(raw_weights, normalized_weights)
 
         return normalized_weights, gradnorm_loss, grads
 
