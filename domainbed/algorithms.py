@@ -3347,7 +3347,7 @@ class GLSD(ERM):
         def u(x, weights, **kwargs):
             #return (x - E(x,weights,keepdim=True)).square()
             #return ((x - E(w,weights)).square() + 1e-6).sqrt()
-            return (1 + torch.exp(x - tau)) 
+            return torch.log1p(torch.exp(x - kwargs["tau"])) 
 
         def imagine_domains(K, n, lambda_min, device, include_base_domains=False):
             lambdas = generate_samples_from_affine_hull(K, n, lambda_min, device=device) # (n,K-1)
