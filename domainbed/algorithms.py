@@ -2640,8 +2640,8 @@ class GradNormLossBalancer:
             smoothed_rates = torch.tensor([self.running_loss_rates[k] for k in self.task_names], device=grads.device)
 
         # Step 5: GradNorm loss
-        gradnorm_loss = (weighted_grads - avg_grad * smoothed_rates).abs().sum()
-        #gradnorm_loss = ((weighted_grads - avg_grad * smoothed_rates) ** 2).sum()
+        #gradnorm_loss = (weighted_grads - avg_grad * smoothed_rates).abs().sum()
+        gradnorm_loss = ((weighted_grads - avg_grad * smoothed_rates) ** 2).sum()
 
         # Step 6: Normalize task weights
         
@@ -2651,7 +2651,6 @@ class GradNormLossBalancer:
         normalized_weights = {k: normed_weights[i].detach().to(self.device) \
                 for i, k in enumerate(self.task_names)
         }
-        print(raw_weights, normalized_weights)
 
         return normalized_weights, gradnorm_loss, grads
 
@@ -2940,7 +2939,7 @@ class GLSD(ERM):
             extra_pars = {}
             
         model_kwargs = {"lr": 1.0*self.hparams["lr"], "weight_decay": self.hparams['weight_decay'], **extra_pars}        
-        gradnorm_kwargs = {"lr": 2.5*self.hparams["lr"], "weight_decay": self.hparams['weight_decay'], **extra_pars}        
+        gradnorm_kwargs = {"lr": 10.0*self.hparams["lr"], "weight_decay": self.hparams['weight_decay'], **extra_pars}        
         
         self.optimizer = CombinedOptimizer(self.network.parameters(), self.gradnorm_balancer.parameters(), 
                 base_optimizer_cls=base_optimizer_cls, model_kwargs=model_kwargs, gradnorm_kwargs=gradnorm_kwargs)
