@@ -3483,6 +3483,7 @@ class GLSD(ERM):
             else:
                 Fk = loss_ssd # (nb,K)       
             
+            print(Fk.size(), Fk)
             diffs = Fk.unsqueeze(2) - Fk.unsqueeze(1) # shape: [nb, K, K]
             penalty = diffs.abs()
             #penalty = F.softplus(diffs) + F.softplus(-diffs)
