@@ -3493,7 +3493,7 @@ class GLSD(ERM):
             penalty = penalty.sum() / nnz_penalty
 
             # Sign for each task
-            loss_signs = {"nll": 1.0, "penalty": 100.0, }
+            loss_signs = {"nll": 1.0, "penalty": 1.0, }
             losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze(), }
         
         if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
