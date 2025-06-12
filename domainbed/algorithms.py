@@ -3529,7 +3529,8 @@ class GLSD(ERM):
             losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze(), }
         
         if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
-            loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss({k: v/self.losses_sav[k] for k,v in losses.items()})
+            losses = {k: v/self.losses_sav[k] for k,v in losses.items()}
+            loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses)
 
             # Combine weights
             signed_weighted_losses = {
