@@ -3445,17 +3445,14 @@ class GLSD(ERM):
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b), requires_grad=False, device=losses.device()
             losses = u(-losses,lambda_ii)
-            pi_worst, _, _ = extreme_affine_combination(losses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
-            pi_best, _, _  = extreme_affine_combination(losses, dominating=True,  order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
-            pi_worst.detach()
-            pi_best.detach()
-
-            # (n,)          (n,)
-            lambda_worst =  make_extreme_lambda(self, pi_worst, worst=0, lambda_min=lambda_min)
-            lambda_best  =  make_extreme_lambda(self, pi_best,  worst=1, lambda_min=lambda_min)
-
-            # (n,2)                (n,)          (n,)
-            lambdas = torch.stack((lambda_worst, lambda_best) ,dim=-1).to(device)
+            with torch.no_grad():
+                pi_worst, _, _ = extreme_affine_combination(losses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
+                pi_best, _, _  = extreme_affine_combination(losses, dominating=True,  order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
+                # (n,)          (n,)
+                lambda_worst =  make_extreme_lambda(self, pi_worst, worst=0, lambda_min=lambda_min)
+                lambda_best  =  make_extreme_lambda(self, pi_best,  worst=1, lambda_min=lambda_min)
+                # (n,2)                (n,)          (n,)
+                lambdas = torch.stack((lambda_worst, lambda_best) ,dim=-1).to(device)
             
         else:
             torch._assert(False, f'Unknown method {self.hparams["glsd_as_regularizer"]}')
