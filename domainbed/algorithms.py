@@ -2578,7 +2578,7 @@ class GradNormLossBalancer:
         else:
             mtau = sum([v for v in tau.values()]) / len(self.task_names)
             tau = [v / mtau for v in tau.values()] 
-        self.tau = torch.tensor(tau, device=device, requires_gard=False)
+        self.tau = torch.tensor(tau, device=device, requires_grad=False)
 
     def parameters(self):
         # So you can pass these to the optimizer
