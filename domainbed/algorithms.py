@@ -3456,7 +3456,7 @@ class GLSD(ERM):
 
             # (n,2)                (n,)          (n,)
             lambdas = torch.stack((lambda_worst, lambda_best) ,dim=-1)
-            print(pi_worst.device(), pi_best.device(), lambda_worst.device(), lambda_best.device(), lambdas.device(), lambdas.size())
+            print(pi_worst.device, pi_best.device, lambda_worst.device, lambda_best.device, lambdas.device, lambdas.size())
             
         else:
             torch._assert(False, f'Unknown method {self.hparams["glsd_as_regularizer"]}')
