@@ -2917,16 +2917,19 @@ class GLSD(ERM):
         pi_init /= pi_init.sum(1, keepdim=True)
         self.register_buffer('pi_prev', pi_init)
         self.register_buffer('margin', torch.tensor([0.2]))
-        self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None), ("nll",None)], alpha=0.99)
         if hparams["glsd_as_regularizer"] == "no":
             initial_weights = {"fsd": 1.0, "nll": 1.0}
+            losses_to_balance = [("fsd",None), ("nll",None)]
             if SSD:
                 initial_weights["ssd"] = 1.0
+                losses_to_balance.append(("ssd",None))
             tau = None
         else:
             initial_weights = {"penalty": 1.0, "nll": 1.0, }
+            losses_to_balance = [("penalty",None), ("nll",None)]
             tau = {"nll": hparams["glsd_nll_lambda"], "penalty": 1.0, } # smaller tau = faster learning
         
+        self.loss_balancer = LossBalancer(losses_to_balance, alpha=0.99)
         self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, 
                 alpha=hparams["glsd_gradnorm_alpha"], device=device, smoothing=hparams["glsd_gradnorm_smoothing"], 
                 tau=tau)
@@ -3530,7 +3533,7 @@ class GLSD(ERM):
             loss_signs = {"nll": 1.0, "penalty": 1.0, }
             losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze(), }
         
-        if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
+        if False and self.update_count > self.hparams["glsd_gradnorm_warmup"]:
             losses = {k: v/self.losses_sav[k] for k,v in losses.items()}
             loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses)
 
@@ -3544,6 +3547,7 @@ class GLSD(ERM):
                 + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
             )
         else: # don't run gradnorm for several rounds
+            losses = self.loss_balancer.update(losses)
             loss_weights = {"penalty": torch.tensor([self.hparams['glsd_nll_lambda']], device=device), "nll": torch.tensor([1.0], device=device)}
             signed_weighted_losses = {
                 name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
