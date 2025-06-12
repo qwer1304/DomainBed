@@ -2555,7 +2555,7 @@ class ADRMX(Algorithm):
         return self.network(x)
 
 class GradNormLossBalancer:
-    def __init__(self, model, initial_weights, alpha=1.2, device='cpu', smoothing=False):
+    def __init__(self, model, initial_weights, alpha=1.2, device='cpu', smoothing=False, tau=None):
         """
         Args:
             model (nn.Module): The model (e.g., ResNet18).
@@ -2573,6 +2573,11 @@ class GradNormLossBalancer:
         self.running_loss_rates = {k: 1.0 for k in self.task_names}  # Initialized to 1.0
         self.smoothing = smoothing
         self.device = device
+        if tau is None:
+            tau = {k: 1.0 for k in in self.task_names}
+        else:
+            mtau = sum([v for v in tau.values()]) / len(self.task_names)
+            tau = {k: v / mtau for k, v in tau.items()} 
 
     def parameters(self):
         # So you can pass these to the optimizer
@@ -2619,9 +2624,9 @@ class GradNormLossBalancer:
         # Step 3: Compute inverse training rates
         loss_ratios = torch.stack([losses_dict[k] / self.initial_losses[k] for k in self.task_names])
 
-        loss_rates = loss_ratios / loss_ratios.mean().detach() 
+        loss_rates = (loss_ratios / loss_ratios.mean().detach()) / tau 
         if not self.smoothing:        
-            loss_rates = loss_rates** self.alpha
+            loss_rates = loss_rates ** self.alpha
             smoothed_rates = loss_rates
         else:
             # Step 4: Update running rates (smoothing)
@@ -2914,11 +2919,14 @@ class GLSD(ERM):
             initial_weights = {"fsd": 1.0, "nll": 1.0}
             if SSD:
                 initial_weights["ssd"] = 1.0
+            tau = None
         else:
             initial_weights = {"penalty": 1.0, "nll": 1.0, }
+            tau = {"nll": hparams["glsd_nll_lambda"], "penalty": 1.0, } # smaller tau = faster learning
         
         self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, 
-                alpha=hparams["glsd_gradnorm_alpha"], device=device, smoothing=hparams["glsd_gradnorm_smoothing"])
+                alpha=hparams["glsd_gradnorm_alpha"], device=device, smoothing=hparams["glsd_gradnorm_smoothing"], 
+                tau=tau)
 
         if self.hparams["glsd_optimizer"] == "sgd":
             base_optimizer_cls=torch.optim.SGD
