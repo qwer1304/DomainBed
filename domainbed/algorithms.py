@@ -3461,6 +3461,7 @@ class GLSD(ERM):
             b = losses.size()[1]
             loss_ssd_list = []
             loss_fsd_list = []
+            print(lambdas)
             for i in range(K):
                 lambda_i = lambdas[:,i].squeeze() # (n,)
                 # Need lambdas: (n,weights)
@@ -3483,7 +3484,6 @@ class GLSD(ERM):
             else:
                 Fk = loss_ssd # (nb,K)       
             
-            print(Fk.size(), Fk)
             diffs = Fk.unsqueeze(2) - Fk.unsqueeze(1) # shape: [nb, K, K]
             penalty = diffs.abs()
             #penalty = F.softplus(diffs) + F.softplus(-diffs)
