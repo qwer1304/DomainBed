@@ -3344,20 +3344,19 @@ class GLSD(ERM):
 
         def u(x, weights):
             return (x - E(x,weights,keepdim=True)).square()
-                
-        if self.hparams["glsd_as_regularizer"] == "no" or self.hparams["glsd_as_regularizer"] == "imagined_domains":
-            K = self.hparams["glsd_K"]
-            lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min, device=device) # (n,K-1)
 
-            if self.hparams["glsd_dominate_all_domains"]:
+        def imagine_domains(K, n, lambda_min, device, include_base_domains=False):
+            lambdas = generate_samples_from_affine_hull(K, n, lambda_min, device=device) # (n,K-1)
+
+            if include_base_domains:
                 perm = torch.randperm(n, device=device)
                 one_hot = torch.zeros(n, n, dtype=torch.float32, device=device)
                 one_hot[torch.arange(n, device=device), perm] = 1.0
                 one_hot.requires_grad_(False) # (n,n)
-                # (n,K'-1)            (n,K-1)   (n,n), K' = K + n
+                # (n,K')             (n,K)    (n,n), K' = K + n
                 lambdas = torch.cat([lambdas, one_hot],dim=1)
-            K = lambdas.size()[1] # update number of lambdas
-
+            return lambdas
+                       
         if self.hparams["glsd_as_regularizer"] == "no":
             """
             In classification we want min_theta max_lambda E[loss].
@@ -3365,15 +3364,13 @@ class GLSD(ERM):
                 min_theta max_lambda E[-u] = min_theta max_lambda -E[u] = min_theta min_lambda E[u] 
             This means we're looking for a dominated environment (one with smallest u)
             """
-            if self.SSD:
-                pi, sorted_eta, envs = extreme_affine_combination(-losses, dominating=False, order=1) # sorted_eta depend on network (nb,)
-            else:
-                pi, sorted_eta, envs = extreme_affine_combination(-losses, dominating=False, order=2) # sorted_eta depend on network (nb,)
-
+            lambdas = imagine_domains(self.hparams["glsd_K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
+            K = lambdas.size()[1]
+            pi, sorted_eta, envs = extreme_affine_combination(-losses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
             # (n,)          (n,)
             lambda_worst =  make_extreme_lambda(self, pi, worst=0, lambda_min=lambda_min).to(device)
 
-            # (n,K')              (n,K'-1)   (n,)
+            # (n,K)               (n,K-1)   (n,)
             lambdas = torch.cat([lambdas,   lambda_worst.unsqueeze(1)],dim=1) # always include the worst affine combination
             K += 1 # count added lambda
             lambdas = lambdas.detach()
@@ -3412,60 +3409,12 @@ class GLSD(ERM):
             loss_ssd = loss_ssd / K
             loss_fsd = loss_fsd / K
 
-            if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
-                # Combine with GradNorm
-                losses = {"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll}
-                loss_weights, loss_gradnorm, _ = self.gradnorm_balancer.compute_weights_and_loss(losses)
-
-                # Sign for each task
-                loss_signs = {
-                    "fsd": 1.0,
-                    "ssd": 1.0,
-                    "nll": -1.0   # this makes NLL adversarial
-                }
-                # Combine weights
-                signed_weighted_losses = {
-                    name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
-                }
-                # Final total loss
-                nll_relu = F.relu(nll - self.hparams["glsd_nll_threshold_global"])
-                loss = (
-                    sum(signed_weighted_losses.values())
-                    + self.hparams["glsd_nll_lambda"] * nll_relu # this term does not go through gradnorm
-                    + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
-                )
-            else: # don't run gradnorm for several rounds
-                loss_weights = {"fsd": torch.tensor([1.0], device=device), "ssd": torch.tensor([1.0], device=device), "nll": torch.tensor([1.0], device=device)}
-                signed_weighted_losses = {
-                    name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
-                }
-                loss = (
-                    sum(signed_weighted_losses.values())
-                )
-                loss_gradnorm = torch.tensor([0])
-
-
-            # Do the real backward pass on the total loss
-            self.optimizer.zero_grad()
-            loss.backward(retain_graph=True)           
-            # Now update both optimizers
-            self.optimizer.step()
-
             data = {"sorted_eta": sorted_eta.detach(), "envs": envs.detach()} # assume we're no backproping the error to previous rounds
             self.buffer.append(data)
 
-            self.update_count += 1
-
-            pi_max, worst_env = torch.max(pi,dim=0)
-            worst_e_index = worst_env.item()
-            if pi_max < 1:
-                worst_e_index = -worst_e_index
-            
-            scalar_loss_weights = {'w_'+k: v.item() for k, v in loss_weights.items()}
-            # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
-            return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(),
-                'nll': nll.item(), 'worst_env': int(worst_e_index), 'loss_gradnorm': loss_gradnorm.item(), **scalar_loss_weights, }      
-        
+            losses = {"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll}
+            loss_signs = {"fsd": 1.0, "ssd": 1.0, nll": -1.0, }   # this makes NLL adversarial
+      
         elif self.hparams["glsd_as_regularizer"] == "imagined_domains":  
             """
             Use Fk of the different domains as regularizer:
@@ -3475,6 +3424,7 @@ class GLSD(ERM):
             4. Normalize by the number of configurations (K).
             5. Use this as a penalty (i.e., we want all Fks to be the same for all etas)
             """
+            lambdas = imagine_domains(self.hparams["glsd_K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
             # Here the domains are non-weighted yet
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b)
@@ -3502,13 +3452,13 @@ class GLSD(ERM):
 
             # (n,2)                (n,)          (n,)
             lambdas = torch.stack((lambda_worst, lambda_best) ,dim=-1)
-            K = lambdas.size()[1] # update number of lambdas
             
         else:
             torch._assert(False, f'Unknown method {self.hparams["glsd_as_regularizer"]}')
             
         if self.hparams["glsd_as_regularizer"] == "imagined_domains" or self.hparams["glsd_as_regularizer"] == "bestworst": 
             lambdas = lambdas.detach() # (n,K)
+            K = lambdas.size()[1] # update number of lambdas
             b = losses.size()[1]
             loss_ssd_list = []
             loss_fsd_list = []
@@ -3529,13 +3479,12 @@ class GLSD(ERM):
             # Stack along new dim = -1 (nb, K)
             loss_ssd = torch.stack(loss_ssd_list, dim=-1)
             loss_fsd = torch.stack(loss_fsd_list, dim=-1)
-            F1 = loss_fsd # (nb,K)
-            F2 = loss_ssd # (nb,K)       
-            
             if self.SSD:
-                diffs = F2.unsqueeze(2) - F2.unsqueeze(1) # shape: [nb, K, K]
+                Fk = loss_ssd # (nb,K)
             else:
-                diffs = F1.unsqueeze(2) - F1.unsqueeze(1) # shape: [nb, K, K]
+                Fk = loss_ssd # (nb,K)       
+            
+            diffs = Fk.unsqueeze(2) - Fk.unsqueeze(1) # shape: [nb, K, K]
             penalty = diffs.abs()
             #penalty = F.softplus(diffs) + F.softplus(-diffs)
             nnz_penalty = (penalty > 0).sum().detach()
@@ -3545,44 +3494,45 @@ class GLSD(ERM):
             # Sign for each task
             loss_signs = {"penalty": 1.0, "nll": 1.0, }
             losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze()}
-            if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
-                loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses)
+        
+        if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
+            loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses)
 
-                # Combine weights
-                signed_weighted_losses = {
-                    name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
-                }
-                # Final total loss
-                loss = (
-                    sum(signed_weighted_losses.values())
-                    + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
-                )
-            else: # don't run gradnorm for several rounds
-                loss_weights = {"penalty": torch.tensor([1.0], device=device), "nll": torch.tensor([1.0], device=device)}
-                signed_weighted_losses = {
-                    name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
-                }
-                loss = (
-                    sum(signed_weighted_losses.values())
-                )
-                loss_gradnorm = torch.tensor([0])
-                grads = torch.tensor([0])
+            # Combine weights
+            signed_weighted_losses = {
+                name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
+            }
+            # Final total loss
+            loss = (
+                sum(signed_weighted_losses.values())
+                + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
+            )
+        else: # don't run gradnorm for several rounds
+            loss_weights = {"penalty": torch.tensor([1.0], device=device), "nll": torch.tensor([1.0], device=device)}
+            signed_weighted_losses = {
+                name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
+            }
+            loss = (
+                sum(signed_weighted_losses.values())
+            )
+            loss_gradnorm = torch.tensor([0])
+            grads = torch.tensor([0])
 
-            # Do the real backward pass on the total loss
-            self.optimizer.zero_grad()
-            loss.backward(retain_graph=True)
-            
-            if False and (self.update_count > 440):
-                print(self.update_count.item(), ":", get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), 
-                    loss_gradnorm.item(), nll.item(), penalty.item(), loss.item(), grads.tolist())
+        # Do the real backward pass on the total loss
+        self.optimizer.zero_grad()
+        loss.backward(retain_graph=True)
 
-            self.optimizer.step()
+        if False and (self.update_count > 440):
+            print(self.update_count.item(), ":", get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), 
+                loss_gradnorm.item(), nll.item(), penalty.item(), loss.item(), grads.tolist())
 
-            self.update_count += 1
+        self.optimizer.step()
 
-            scalar_loss_weights = {'w_'+k: v.item() for k, v in loss_weights.items()}
-            return {'loss': loss.item(), 'penalty': penalty.item(), 'nll': nll.item(), 'loss_gradnorm': loss_gradnorm.item(), **scalar_loss_weights, }      
+        self.update_count += 1
 
+        scalar_losses = {k: v.item() for k, v in losses.items()}
+        scalar_loss_weights = {'w_'+k: v.item() for k, v in loss_weights.items()}
+        return {**scalar_losses, 'loss_gradnorm': loss_gradnorm.item(), **scalar_loss_weights, }      
 
 class GLSD_SSD(GLSD):
     """GLSD_SSD algorithm """
