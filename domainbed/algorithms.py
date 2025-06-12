@@ -2910,7 +2910,7 @@ class GLSD(ERM):
         self.register_buffer('pi_prev', pi_init)
         self.register_buffer('margin', torch.tensor([0.2]))
         self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None), ("nll",None)], alpha=0.99)
-        if not hparams["glsd_as_regularizer"]:
+        if hparams["glsd_as_regularizer"] == "no":
             initial_weights = {"fsd": 1.0, "nll": 1.0}
             if SSD:
                 initial_weights["ssd"] = 1.0
@@ -3494,10 +3494,13 @@ class GLSD(ERM):
             nnz_penalty = (penalty > 0).sum().detach()
             nnz_penalty = nnz_penalty if nnz_penalty > 0 else 1
             penalty = penalty.sum() / nnz_penalty
+            if penalty > 0:
+                penalty = penalty + 1e-5
+
 
             # Sign for each task
-            loss_signs = {"penalty": 1.0, "nll": 1.0, }
-            losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze()}
+            loss_signs = {"nll": 1.0, "penalty", 1.0}
+            losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze(), }
         
         if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
             loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses)
