@@ -3533,6 +3533,7 @@ class GLSD(ERM):
 
         scalar_losses = {k: v.item() for k, v in losses.items()}
         scalar_loss_weights = {'w_'+k: v.item() for k, v in loss_weights.items()}
+        print(scalar_losses)
         return {**scalar_losses, 'loss_gradnorm': loss_gradnorm.item(), **scalar_loss_weights, }      
 
 class GLSD_SSD(GLSD):
