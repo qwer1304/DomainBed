@@ -194,7 +194,7 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('glsd_optimizer', "adam", lambda r: "adam")
         _hparam('glsd_K', 10, lambda r: 10)
         _hparam('glsd_dominate_all_domains', False, lambda r: False)
-        _hparam('glsd_as_regularizer', False, lambda r: False)
+        _hparam('glsd_as_regularizer', "no", lambda r: "no")
         _hparam('glsd_gradnorm_alpha', 1.2, lambda r: r.uniform(0.1, 3))
         _hparam('glsd_gradnorm_smoothing', False, lambda r: False)
         _hparam('glsd_gradnorm_lambda', 0.1, lambda r: 0.1)

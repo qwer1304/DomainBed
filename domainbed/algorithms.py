@@ -2902,8 +2902,8 @@ class GLSD(ERM):
         rb = DictCircularBuffer(capacity, spec, device=device)
         self.buffer = rb
         self.register_buffer('update_count', torch.tensor([0]))
-        self.register_buffer('pi', torch.tensor([1]+[0]*(num_domains-1)))
-        self.register_buffer('pi_prev', torch.tensor([0]*(num_domains-1)+[1]))
+        self.register_buffer('pi', torch.tensor([[1]+[0]*(num_domains-1)]*2))
+        self.register_buffer('pi_prev', torch.tensor([[0]*(num_domains-1)+[1]]*2))
         self.register_buffer('margin', torch.tensor([0.2]))
         self.loss_balancer = LossBalancer([("fsd",None), ("ssd",None), ("nll",None)], alpha=0.99)
         if not hparams["glsd_as_regularizer"]:
@@ -3026,10 +3026,12 @@ class GLSD(ERM):
 
             return (sorted_eta, envs, lambdas_sorted_all), F1, F2
 
-        def dominating_1st_cdf(x, tau=1.0):
+        def extreme_affine_combination(x, dominating, order, tau=1.0):
             """
             First-order dominating cdf.
                 x: (n,samples) of n distributions, which we want to maximize.
+                dominating: True/False
+                order: Fk, k=1/2
             Returns:
                 pi: a probability vector (n,) which gives for each domain i 
                     the probability of being assigned the positive lambda of an affine combination
@@ -3041,104 +3043,25 @@ class GLSD(ERM):
             x, lambdas = x
             device = x.device
             n,b = x.size()
-            (sorted_eta, envs, _), F1, _ = calculate_Fks(x)
-           
-            diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, b]
+            (sorted_eta, envs, _), F1, F2 = calculate_Fks(x)
+            if order == 1:
+                Fk = F1
+            else: 
+                Fk = F2 
+            diffs = Fk.unsqueeze(1) - Fk.unsqueeze(0) # shape: [n, n, b]
+            if dominating:
+                clamp = {"max": 0}
+            else:
+                clamp = {"min": 0}
             
             # i is dominating j if T[i,k] <= T[j,k] for all k and there's some m s.t. T[i,m] < T[j,m]
-            # T[i] <= T[j] elementwise for all j != i
+            # i is dominated by j if T[i,k] >= T[j,k] for all k and there's some m s.t. T[i,m] > T[j,m]
 
             # Find i such that T[i] <= T[j] for all j != i and some T[i,k] < T[j,k]            
-            diffs = torch.clamp(diffs, max=0) # leave only etas where i is dominating
+            diffs = torch.clamp(diffs, **clamp) # leave only etas where i is dominating/dominated
             scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
             # Softmax over dominating scores to get positive weights sum to 1
             pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0                     
-            return pi, sorted_eta, envs
-
-        def dominating_2nd_cdf(x, tau=1.0):
-            """
-            Second-order dominating cdf.
-                x: samples: (n,samples) of n distributions, which we want to maximize.
-            Returns:
-                pi: a probability vector (n,) which gives for each domain i 
-                    the probability of being assigned the positive lambda of an affine combination
-                    (lambdas = (pi * lambda_pos + (1 - pi) * lambda_min)
-                sorted_eta: eta for which Fk were computed 
-                env: env each eta came from
-            """    
-            
-            device = x.device
-            n,b = x.size()
-            (sorted_eta, envs, _), _, F2 = calculate_Fks(x)
-           
-            diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, b]
-            
-            # i is dominating j if T[i,k] <= T[j,k] for all k and there's some m s.t. T[i,m] < T[j,m]
-            # T[i] <= T[j] elementwise for all j != i
-            # disregard self-diff, disregard F2(0) since it's set to 0 for all environments
-
-            # Find i such that T[i] <= T[j] for all j != i and some T[i,k] < T[j,k]
-            
-            diffs = torch.clamp(diffs, max=0) # leave only etas where i is dominated
-            scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
-            # Softmax over dominating scores to get positive weights sum to 1
-            pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0                      
-            return pi, sorted_eta, envs
-
-        def dominated_1st_cdf(x, tau=1.0):
-            """
-            First-order dominated cdf.
-                x: (n,samples) of n distributions, which we want to maximize.
-            Returns:
-                pi: a probability vector (n,) which gives for each domain i 
-                    the probability of being assigned the positive lambda of an affine combination
-                    (lambdas = (pi * lambda_pos + (1 - pi) * lambda_min)
-                sorted_eta: eta for which Fk were computed 
-                env: env each eta came from
-            """    
-            
-            x, lambdas = x
-            device = x.device
-            n,b = x.size()
-            (sorted_eta, envs, _), F1, _ = calculate_Fks(x)
-           
-            diffs = F1.unsqueeze(1) - F1.unsqueeze(0) # shape: [n, n, b]
-            
-            # i is dominated by j if T[i,k] >= T[j,k] for all k and there's some m s.t. T[i,m] > T[j,m]
-            # T[i] >= T[j] elementwise for all j != i
-            
-            diffs = torch.clamp(diffs, min=0) # leave only etas where i is dominated
-            scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
-            # Softmax over dominated scores to get positive weights sum to 1
-            pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0                     
-            return pi, sorted_eta, envs
-
-        def dominated_2nd_cdf(x, tau=1.0):
-            """
-            Second-order dominated cdf.
-                x: samples: (n,samples) of n distributions, which we want to maximize.
-            Returns:
-                pi: a probability vector (n,) which gives for each domain i 
-                    the probability of being assigned the positive lambda of an affine combination
-                    (lambdas = (pi * lambda_pos + (1 - pi) * lambda_min)
-                sorted_eta: eta for which Fk were computed 
-                env: env each eta came from
-            """    
-            
-            device = x.device
-            n,b = x.size()
-            (sorted_eta, envs, _), _, F2 = calculate_Fks(x)
-           
-            diffs = F2.unsqueeze(1) - F2.unsqueeze(0) # shape: [n, n, b]
-            
-            # i is dominated by j if T[i,k] >= T[j,k] for all k and there's some m s.t. T[i,m] > T[j,m]
-            # T[i] >= T[j] elementwise for all j != i
-            # disregard self-diff, disregard F2(0) since it's set to 0 for all environments
-            
-            diffs = torch.clamp(diffs, min=0) # leave only etas where i is dominated
-            scores = torch.sum(diffs, (1,2)) # sum all scores over other environments
-            # Softmax over dominated scores to get positive weights sum to 1
-            pi = torch.softmax(scores / tau, dim=0)  # tau = temperature > 0                      
             return pi, sorted_eta, envs
 
         def fill_list(x):
@@ -3377,25 +3300,65 @@ class GLSD(ERM):
                 Lambdas = torch.empty(n,K,device=device,dtype=torch.float)
             return Lambdas
 
-        K = self.hparams["glsd_K"]
-        lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min, device=device) # (n,K-1)
-
-        if self.hparams["glsd_dominate_all_domains"]:
-            perm = torch.randperm(n, device=device)
-            one_hot = torch.zeros(n, n, dtype=torch.float32, device=device)
-            one_hot[torch.arange(n, device=device), perm] = 1.0
-            one_hot.requires_grad_(False) # (n,n)
-            # (n,K'-1)            (n,K-1)   (n,n), K' = K + n
-            lambdas = torch.cat([lambdas, one_hot],dim=1)
-        K = lambdas.size()[1] # update number of lambdas
-
         def get_total_grad_norm(model):
             grads = [p.grad for p in model.parameters() if p.grad is not None]
             if not grads:
                 return 0.0
             return torch.norm(torch.stack([g.norm() for g in grads])).item()
             
-        if not self.hparams["glsd_as_regularizer"]:
+        def make_extreme_lambda(self, pi, worst, lambda_min):
+            """
+            Args:
+                pi: vector (n,) of probabilities to assign domain i lambda_pos
+                worst: 0/1 index of pi
+                lambda_min: minimal lambda of the affine combination
+            Returns:
+                lambda: (n,) affine combination
+            """
+            n = len(pi)
+            update_worst_env_every_steps = self.hparams['glsd_update_worst_env_every_steps']
+            ministep = self.update_count.item() % update_worst_env_every_steps
+            if ministep == 0:
+                self.pi_prev[worst] = self.pi[worst]
+                self.pi[worst] = pi                  
+
+            alpha_max = update_worst_env_every_steps / self.hparams['alpha_div']
+            alpha = min(ministep/alpha_max,1)
+            pi = alpha*self.pi[worst] + (1-alpha)*self.pi_prev[worst]
+
+            pi = pi.detach() # (n,)
+
+            lambda_pos = 1 - (n - 1) * lambda_min
+            # (n,)          (n,)
+            lambda_val = pi * lambda_pos + (1 - pi) * lambda_min
+
+            return lambda_val
+
+        def E(x, weights, keepdim=False):
+            """ Calculates expectation of sample with signed distribution
+                x: samples, (n,b)
+                weights: probabilities, (n,b)
+            """
+            e = (x * weights).sum(1, keepdim=keepdim)
+            return e
+
+        def u(x, weights):
+            return (x - E(x,weights,keepdim=True)).square()
+                
+        if self.hparams["glsd_as_regularizer"] == "no" or self.hparams["glsd_as_regularizer"] == "imagined_domains":
+            K = self.hparams["glsd_K"]
+            lambdas = generate_samples_from_affine_hull(K-1, n, lambda_min, device=device) # (n,K-1)
+
+            if self.hparams["glsd_dominate_all_domains"]:
+                perm = torch.randperm(n, device=device)
+                one_hot = torch.zeros(n, n, dtype=torch.float32, device=device)
+                one_hot[torch.arange(n, device=device), perm] = 1.0
+                one_hot.requires_grad_(False) # (n,n)
+                # (n,K'-1)            (n,K-1)   (n,n), K' = K + n
+                lambdas = torch.cat([lambdas, one_hot],dim=1)
+            K = lambdas.size()[1] # update number of lambdas
+
+        if self.hparams["glsd_as_regularizer"] == "no":
             """
             In classification we want min_theta max_lambda E[loss].
             For utility-view with u=-loss this gives: 
@@ -3403,25 +3366,13 @@ class GLSD(ERM):
             This means we're looking for a dominated environment (one with smallest u)
             """
             if self.SSD:
-                pi, sorted_eta, envs = dominated_2nd_cdf(-losses) # sorted_eta depend on network (nb,)
+                pi, sorted_eta, envs = extreme_affine_combination(-losses, dominating=False, order=1) # sorted_eta depend on network (nb,)
             else:
-                pi, sorted_eta, envs = dominated_1st_cdf(-losses) # sorted_eta depend on network (nb,)
+                pi, sorted_eta, envs = extreme_affine_combination(-losses, dominating=False, order=2) # sorted_eta depend on network (nb,)
 
-            update_worst_env_every_steps = self.hparams['glsd_update_worst_env_every_steps']
-            ministep = self.update_count.item() % update_worst_env_every_steps
-            if ministep == 0:
-                self.pi_prev = self.pi
-                self.pi = pi
-
-            alpha_max = update_worst_env_every_steps / self.hparams['alpha_div']
-            alpha = min(ministep/alpha_max,1)
-            pi = alpha*self.pi + (1-alpha)*self.pi_prev
-
-            pi = pi.detach() # (n,)
-
-            lambda_pos = 1 - (n - 1) * lambda_min
             # (n,)          (n,)
-            lambda_worst = (pi * lambda_pos + (1 - pi) * lambda_min).to(device)
+            lambda_worst =  make_extreme_lambda(self, pi, worst=0, lambda_min=lambda_min).to(device)
+
             # (n,K')              (n,K'-1)   (n,)
             lambdas = torch.cat([lambdas,   lambda_worst.unsqueeze(1)],dim=1) # always include the worst affine combination
             K += 1 # count added lambda
@@ -3514,7 +3465,8 @@ class GLSD(ERM):
             # IMPORTANT!! train.py prints means of the values aggregated between prints, so worst_index becomes garbage!!!
             return {'loss': loss.item(), 'n_loss_FSD': loss_fsd.item(), 'n_loss_SSD': loss_ssd.item(),
                 'nll': nll.item(), 'worst_env': int(worst_e_index), 'loss_gradnorm': loss_gradnorm.item(), **scalar_loss_weights, }      
-        else:      
+        
+        elif self.hparams["glsd_as_regularizer"] == "imagined_domains":  
             """
             Use Fk of the different domains as regularizer:
             1. Calculate Fk for all domains (including the imagined ones) for all etas and configurations.
@@ -3523,17 +3475,39 @@ class GLSD(ERM):
             4. Normalize by the number of configurations (K).
             5. Use this as a penalty (i.e., we want all Fks to be the same for all etas)
             """
-            def E(x, weights, keepdim=False):
-                """ Calculates expectation of sample with signed distribution
-                    x: samples, (n,b)
-                    weights: probabilities, (n,b)
-                """
-                e = (x * weights).sum(1, keepdim=keepdim)
-                return e
-                
-            def u(x, weights):
-                return (x - E(x,weights,keepdim=True)).square()
-                
+            # Here the domains are non-weighted yet
+            b = losses.size()[1]
+            lambda_ii = torch.ones_like(losses) / b # (n,b)
+            ulosses = u(-losses,lambda_ii)
+                        
+        elif self.hparams["glsd_as_regularizer"] == "bestworst": 
+            """
+            Use Fk of the best and worst affine combinations as regularizer:
+            1a. Calculate best and worst affine combinations
+            1b. Calculate Fk for these combinations.
+            2. Take the squared difference between them for each eta.
+            3. Sum over both, for  all etas.
+            4. Use this as a penalty (i.e., we want all Fks to be the same for all etas)
+            """
+            # Here the domains are non-weighted yet
+            b = losses.size()[1]
+            lambda_ii = torch.ones_like(losses) / b # (n,b)
+            ulosses = u(-losses,lambda_ii)
+            pi_worst, _, _ = extreme_affine_combination(ulosses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
+            pi_best, _, _  = extreme_affine_combination(ulosses, dominating=True,  order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
+
+            # (n,)          (n,)
+            lambda_worst =  make_extreme_lambda(self, pi_worst, worst=0, lambda_min=lambda_min).to(device)
+            lambda_best  =  make_extreme_lambda(self, pi_best,  worst=1, lambda_min=lambda_min).to(device)
+
+            # (n,2)                (n,)          (n,)
+            lambdas = torch.stack((lambda_worst, lambda_best) ,dim=-1)
+            K = lambdas.size()[1] # update number of lambdas
+            
+        else:
+            torch._assert(False, f'Unknown method {self.hparams["glsd_as_regularizer"]}')
+            
+        if self.hparams["glsd_as_regularizer"] == "imagined_domains" or self.hparams["glsd_as_regularizer"] == "bestworst": 
             lambdas = lambdas.detach() # (n,K)
             b = losses.size()[1]
             loss_ssd_list = []
@@ -3541,8 +3515,9 @@ class GLSD(ERM):
             for i in range(K):
                 lambda_i = lambdas[:,i].squeeze() # (n,)
                 # Need lambdas: (n,weights)
-                lambda_ii = lambda_i.unsqueeze(1).repeat(1,b) / b # (n,b)
-                (sorted_eta, envs, _), _, _ = calculate_Fks(u(-losses,lambda_ii)) # (nb,)
+                # Here the domains are non-weighted yet
+                (sorted_eta, envs, _), _, _ = calculate_Fks(ulosses) # (nb,)
+                # Create true affine combination
                 lambda_ii = torch.tensor([lambda_i[int(e.item())] for e in envs], device=device) / sorted_eta.size()[0] # (nb,)
                 _, l_fsd, l_ssd = calculate_Fks(sorted_eta.unsqueeze(0), lambda_ii.unsqueeze(0)) # (1, nb)
                 l_fsd = l_fsd.squeeze() # (nb,)
@@ -3607,6 +3582,7 @@ class GLSD(ERM):
 
             scalar_loss_weights = {'w_'+k: v.item() for k, v in loss_weights.items()}
             return {'loss': loss.item(), 'penalty': penalty.item(), 'nll': nll.item(), 'loss_gradnorm': loss_gradnorm.item(), **scalar_loss_weights, }      
+
 
 class GLSD_SSD(GLSD):
     """GLSD_SSD algorithm """
