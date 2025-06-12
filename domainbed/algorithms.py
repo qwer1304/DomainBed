@@ -3251,7 +3251,10 @@ class GLSD(ERM):
             return ret_val_F2, ret_val_F1, sorted_eta, sorted_is_y
 
         # What are minibatches? Looks like they're minibatch per environment
-        torch.cuda.memory_allocated()
+        def report_memory():
+            print(f"Allocated: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
+            print(f"Reserved:  {torch.cuda.memory_reserved() / 1024**3:.2f} GB")
+        report_memory()
         penalty_weight = 1.0
         nll = 0.
         n = len(minibatches)
