@@ -3040,7 +3040,6 @@ class GLSD(ERM):
                 env: env each eta came from
             """    
             
-            x, lambdas = x
             device = x.device
             n,b = x.size()
             (sorted_eta, envs, _), F1, F2 = calculate_Fks(x)
