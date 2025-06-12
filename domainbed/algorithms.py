@@ -3413,7 +3413,7 @@ class GLSD(ERM):
             self.buffer.append(data)
 
             losses = {"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll}
-            loss_signs = {"fsd": 1.0, "ssd": 1.0, nll": -1.0, }   # this makes NLL adversarial
+            loss_signs = {"fsd": 1.0, "ssd": 1.0, "nll": -1.0, }   # this makes NLL adversarial
       
         elif self.hparams["glsd_as_regularizer"] == "imagined_domains":  
             """
