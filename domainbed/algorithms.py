@@ -2574,7 +2574,7 @@ class GradNormLossBalancer:
         self.smoothing = smoothing
         self.device = device
         if tau is None:
-            tau = {k: 1.0 for k in in self.task_names}
+            tau = {k: 1.0 for k in self.task_names}
         else:
             mtau = sum([v for v in tau.values()]) / len(self.task_names)
             tau = {k: v / mtau for k, v in tau.items()} 
