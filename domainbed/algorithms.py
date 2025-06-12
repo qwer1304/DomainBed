@@ -3451,12 +3451,11 @@ class GLSD(ERM):
             pi_best.detach()
 
             # (n,)          (n,)
-            lambda_worst =  make_extreme_lambda(self, pi_worst, worst=0, lambda_min=lambda_min).to(device)
-            lambda_best  =  make_extreme_lambda(self, pi_best,  worst=1, lambda_min=lambda_min).to(device)
+            lambda_worst =  make_extreme_lambda(self, pi_worst, worst=0, lambda_min=lambda_min)
+            lambda_best  =  make_extreme_lambda(self, pi_best,  worst=1, lambda_min=lambda_min)
 
             # (n,2)                (n,)          (n,)
-            lambdas = torch.stack((lambda_worst, lambda_best) ,dim=-1)
-            print(pi_worst.device, pi_best.device, lambda_worst.device, lambda_best.device, lambdas.device, lambdas.size())
+            lambdas = torch.stack((lambda_worst, lambda_best) ,dim=-1).to(device)
             
         else:
             torch._assert(False, f'Unknown method {self.hparams["glsd_as_regularizer"]}')
