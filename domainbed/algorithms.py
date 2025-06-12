@@ -2625,7 +2625,10 @@ class GradNormLossBalancer:
         # Step 3: Compute inverse training rates
         loss_ratios = torch.stack([losses_dict[k] / self.initial_losses[k] for k in self.task_names])
 
-        loss_rates = (loss_ratios / loss_ratios.mean().detach()) / self.tau 
+        normalized_ratios = loss_ratios / loss_ratios.mean().detach()
+        loss_rates = normalized_ratios / self.tau
+        print(loss_rates)
+        
         if not self.smoothing:        
             loss_rates = loss_rates ** self.alpha
             smoothed_rates = loss_rates
