@@ -3529,7 +3529,7 @@ class GLSD(ERM):
             losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze(), }
         
         if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
-            loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss({k: v/losses_sav[k] for k,v in losses.items()})
+            loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss({k: v/self.losses_sav[k] for k,v in losses.items()})
 
             # Combine weights
             signed_weighted_losses = {
@@ -3550,7 +3550,7 @@ class GLSD(ERM):
             )
             loss_gradnorm = torch.tensor([0])
             grads = torch.tensor([0])
-            losses_sav = {k: v.detach() for k,v in losses.items()}
+            self.losses_sav = {k: v.detach() for k,v in losses.items()}
 
         # Do the real backward pass on the total loss
         self.optimizer.zero_grad()
