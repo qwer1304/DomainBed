@@ -3418,6 +3418,14 @@ class GLSD(ERM):
             loss_signs = {"fsd": 1.0, "ssd": 1.0, "nll": -1.0, }   # this makes NLL adversarial
       
         elif self.hparams["glsd_as_regularizer"] == "imagined_domains":  
+            # Here the domains are non-weighted yet
+            b = losses.size()[1]
+            lambda_ii = torch.ones_like(losses) / b # (n,b)
+            losses = u(-losses,lambda_ii)
+            with torch.no_grad():
+                lambdas = imagine_domains(self.hparams["glsd_K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
+
+        elif self.hparams["glsd_as_regularizer"] == "imagined_domains&bestworst":  
             """
             Use Fk of the different domains as regularizer:
             1. Calculate Fk for all domains (including the imagined ones) for all etas and configurations.
@@ -3426,11 +3434,19 @@ class GLSD(ERM):
             4. Normalize by the number of configurations (K).
             5. Use this as a penalty (i.e., we want all Fks to be the same for all etas)
             """
-            lambdas = imagine_domains(self.hparams["glsd_K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
             # Here the domains are non-weighted yet
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b)
             losses = u(-losses,lambda_ii)
+            with torch.no_grad():
+                pi_worst, _, _ = extreme_affine_combination(losses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
+                pi_best, _, _  = extreme_affine_combination(losses, dominating=True,  order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
+                # (n,)          (n,)
+                lambda_worst =  make_extreme_lambda(self, pi_worst, worst=0, lambda_min=lambda_min)
+                lambda_best  =  make_extreme_lambda(self, pi_best,  worst=1, lambda_min=lambda_min)
+                # (n,2)                (n,)          (n,)
+                lambdas = torch.stack((lambdas, lambda_worst, lambda_best) ,dim=-1).to(device)
+                lambdas = imagine_domains(self.hparams["glsd_K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
                         
         elif self.hparams["glsd_as_regularizer"] == "bestworst": 
             """
@@ -3457,7 +3473,10 @@ class GLSD(ERM):
         else:
             torch._assert(False, f'Unknown method {self.hparams["glsd_as_regularizer"]}')
             
-        if self.hparams["glsd_as_regularizer"] == "imagined_domains" or self.hparams["glsd_as_regularizer"] == "bestworst": 
+        if self.hparams["glsd_as_regularizer"] == "imagined_domains" or \
+            self.hparams["glsd_as_regularizer"] == "bestworst" or \
+            self.hparams["glsd_as_regularizer"] == "imagined_domains&bestworst": 
+            
             lambdas = lambdas.detach() # (n,K)
             K = lambdas.size()[1] # update number of lambdas
             b = losses.size()[1]
