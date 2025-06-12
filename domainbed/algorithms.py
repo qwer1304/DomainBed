@@ -3444,10 +3444,12 @@ class GLSD(ERM):
             """
             # Here the domains are non-weighted yet
             b = losses.size()[1]
-            lambda_ii = torch.ones_like(losses) / b # (n,b)
+            lambda_ii = torch.ones_like(losses) / b # (n,b), requires_grad=False
             ulosses = u(-losses,lambda_ii)
             pi_worst, _, _ = extreme_affine_combination(ulosses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
             pi_best, _, _  = extreme_affine_combination(ulosses, dominating=True,  order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
+            pi_worst.detach()
+            pi_best.detach()
 
             # (n,)          (n,)
             lambda_worst =  make_extreme_lambda(self, pi_worst, worst=0, lambda_min=lambda_min).to(device)
