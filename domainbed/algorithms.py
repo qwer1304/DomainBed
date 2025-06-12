@@ -3445,8 +3445,8 @@ class GLSD(ERM):
                 lambda_worst =  make_extreme_lambda(self, pi_worst, worst=0, lambda_min=lambda_min)
                 lambda_best  =  make_extreme_lambda(self, pi_best,  worst=1, lambda_min=lambda_min)
                 # (n,2)                (n,)          (n,)
-                lambdas = torch.stack((lambdas, lambda_worst, lambda_best) ,dim=-1).to(device)
                 lambdas = imagine_domains(self.hparams["glsd_K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
+                lambdas = lambdas.cat(torch.stack((lambda_worst, lambda_best) ,dim=-1).to(device), dim=-1)
                         
         elif self.hparams["glsd_as_regularizer"] == "bestworst": 
             """
