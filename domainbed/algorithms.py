@@ -3251,6 +3251,7 @@ class GLSD(ERM):
             return ret_val_F2, ret_val_F1, sorted_eta, sorted_is_y
 
         # What are minibatches? Looks like they're minibatch per environment
+        torch.cuda.memory_allocated()
         penalty_weight = 1.0
         nll = 0.
         n = len(minibatches)
@@ -3494,9 +3495,6 @@ class GLSD(ERM):
             nnz_penalty = (penalty > 0).sum().detach()
             nnz_penalty = nnz_penalty if nnz_penalty > 0 else 1
             penalty = penalty.sum() / nnz_penalty
-            if penalty > 0:
-                penalty = penalty + 1e-5
-
 
             # Sign for each task
             loss_signs = {"nll": 1.0, "penalty": 1.0, }
