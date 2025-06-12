@@ -2950,7 +2950,7 @@ class GLSD(ERM):
                 alpha=hparams["glsd_gradnorm_alpha"], device=device, smoothing=hparams["glsd_gradnorm_smoothing"], 
                 tau=tau)
 
-        self.optimizer = init_optimizer(self)
+        self.optimizer = self.init_optimizer()
        
         self.glsd_after_load_state_count = 0
 
