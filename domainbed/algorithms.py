@@ -3251,10 +3251,6 @@ class GLSD(ERM):
             return ret_val_F2, ret_val_F1, sorted_eta, sorted_is_y
 
         # What are minibatches? Looks like they're minibatch per environment
-        def report_memory():
-            print(f"Allocated: {torch.cuda.memory_allocated() / 1024**3:.2f} GB")
-            print(f"Reserved:  {torch.cuda.memory_reserved() / 1024**3:.2f} GB")
-        report_memory()
         penalty_weight = 1.0
         nll = 0.
         n = len(minibatches)
@@ -3434,7 +3430,7 @@ class GLSD(ERM):
             # Here the domains are non-weighted yet
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b)
-            ulosses = u(-losses,lambda_ii)
+            losses = u(-losses,lambda_ii)
                         
         elif self.hparams["glsd_as_regularizer"] == "bestworst": 
             """
@@ -3448,9 +3444,9 @@ class GLSD(ERM):
             # Here the domains are non-weighted yet
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b), requires_grad=False, device=losses.device()
-            ulosses = u(-losses,lambda_ii)
-            pi_worst, _, _ = extreme_affine_combination(ulosses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
-            pi_best, _, _  = extreme_affine_combination(ulosses, dominating=True,  order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
+            losses = u(-losses,lambda_ii)
+            pi_worst, _, _ = extreme_affine_combination(losses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
+            pi_best, _, _  = extreme_affine_combination(losses, dominating=True,  order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
             pi_worst.detach()
             pi_best.detach()
 
@@ -3474,7 +3470,7 @@ class GLSD(ERM):
                 lambda_i = lambdas[:,i].squeeze() # (n,)
                 # Need lambdas: (n,weights)
                 # Here the domains are non-weighted yet
-                (sorted_eta, envs, _), _, _ = calculate_Fks(ulosses) # (nb,)
+                (sorted_eta, envs, _), _, _ = calculate_Fks(losses) # (nb,)
                 # Create true affine combination
                 lambda_ii = torch.tensor([lambda_i[int(e.item())] for e in envs], device=device) / sorted_eta.size()[0] # (nb,)
                 _, l_fsd, l_ssd = calculate_Fks(sorted_eta.unsqueeze(0), lambda_ii.unsqueeze(0)) # (1, nb)
