@@ -202,6 +202,7 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('glsd_nll_threshold_sample', 3, lambda r: r.uniform(0.1, 4))
         _hparam('glsd_nll_threshold_global', 70, lambda r: r.uniform(60, 90))
         _hparam('glsd_nll_lambda', 10, lambda r: 10)
+        _hparam('glsd_u_kwargs', {}, lambda r: {})
 
     if algorithm == "ADRMX":
         _hparam('cnt_lambda', 1.0, lambda r: r.choice([1.0]))

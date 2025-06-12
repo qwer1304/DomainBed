@@ -3361,7 +3361,7 @@ class GLSD(ERM):
                 lambdas = torch.cat([lambdas, one_hot],dim=1)
             return lambdas
                        
-        kwargs = {"tau": 2.0}
+        kwargs = self.hparams["glsd_u_kwargs"]
         if self.hparams["glsd_as_regularizer"] == "no":
             """
             In classification we want min_theta max_lambda E[loss].
