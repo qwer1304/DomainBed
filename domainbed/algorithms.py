@@ -3368,11 +3368,15 @@ class GLSD(ERM):
 
         def u(x, weights, utype, **kwargs):
             if utype==0:
-                return (x - E(x,weights,keepdim=True)).square()
+                return -((x - E(x,weights,keepdim=True)).square())
             elif utype==1:
-                return ((x - E(x,weights,keepdim=True)).square() + 1e-6).sqrt()
+                return -(((x - E(x,weights,keepdim=True)).square() + 1e-6).sqrt())
             elif utype==2:
                 return torch.log1p(torch.exp(x - kwargs["tau"])) 
+            elif utype==3:
+                return torch.sigmoid(x - kwargs["tau"])
+            elif utype==4:
+                return 1 - torch.exp(-x*kwargs["tau"])
             else:
                 assert False, f"Unknown u() type {utype}"
     
