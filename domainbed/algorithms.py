@@ -2945,7 +2945,7 @@ class GLSD(ERM):
             losses_to_balance = [("penalty",None), ("nll",None)]
             tau = {"nll": hparams["glsd_nll_lambda"], "penalty": 1.0, } # smaller tau = faster learning
         
-        self.loss_balancer = LossBalancer(losses_to_balance, alpha=0.99)
+        self.loss_balancer = LossBalancer(losses_to_balance, alpha=hparams["glsd_lossbalancer_alpha"])
         self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, 
                 alpha=hparams["glsd_gradnorm_alpha"], device=device, smoothing=hparams["glsd_gradnorm_smoothing"], 
                 tau=tau)
@@ -3343,7 +3343,7 @@ class GLSD(ERM):
                 self.pi_prev[worst] = self.pi[worst]
                 self.pi[worst] = pi                  
 
-            alpha_max = update_worst_env_every_steps / self.hparams['alpha_div']
+            alpha_max = update_worst_env_every_steps / self.hparams['glsd_lambda_alpha_div']
             alpha = min(ministep/alpha_max,1)
             pi = alpha*self.pi[worst] + (1-alpha)*self.pi_prev[worst]
 
