@@ -3363,13 +3363,15 @@ class GLSD(ERM):
             e = (x * weights).sum(1, keepdim=keepdim)
             return e
 
-        def u(x, weights, u_type, **kwargs):
+        def u(x, weights, utype, **kwargs):
             if utype==0:
                 return (x - E(x,weights,keepdim=True)).square()
-            if utype==1:
+            elif utype==1:
                 return ((x - E(w,weights)).square() + 1e-6).sqrt()
-            if utype==2:
+            elif utype==2:
                 return torch.log1p(torch.exp(x - kwargs["tau"])) 
+            else:
+                assert False, f"Unknown u() type {utype}"
     
         def imagine_domains(K, n, lambda_min, device, include_base_domains=False):
             lambdas = generate_samples_from_affine_hull(K, n, lambda_min, device=device) # (n,K-1)
