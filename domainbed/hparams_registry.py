@@ -206,6 +206,7 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('glsd_penalty_lambda_min', 0.1, lambda r: 0.1)
         _hparam('glsd_penalty_tau', 100, lambda r: 100)
         _hparam('glsd_penalty_power', 1.0, lambda r: 1.0)
+        _hparam('glsd_utype', 0, lambda r: 0)
         _hparam('glsd_u_kwargs', {}, lambda r: {})
 
     if algorithm == "ADRMX":

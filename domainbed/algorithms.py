@@ -3363,11 +3363,14 @@ class GLSD(ERM):
             e = (x * weights).sum(1, keepdim=keepdim)
             return e
 
-        def u(x, weights, **kwargs):
-            return (x - E(x,weights,keepdim=True)).square()
-            #return ((x - E(w,weights)).square() + 1e-6).sqrt()
-            #return torch.log1p(torch.exp(x - kwargs["tau"])) 
-
+        def u(x, weights, u_type, **kwargs):
+            if utype==0:
+                return (x - E(x,weights,keepdim=True)).square()
+            if utype==1:
+                return ((x - E(w,weights)).square() + 1e-6).sqrt()
+            if utype==2:
+                return torch.log1p(torch.exp(x - kwargs["tau"])) 
+    
         def imagine_domains(K, n, lambda_min, device, include_base_domains=False):
             lambdas = generate_samples_from_affine_hull(K, n, lambda_min, device=device) # (n,K-1)
 
@@ -3443,7 +3446,7 @@ class GLSD(ERM):
             # Here the domains are non-weighted yet
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b)
-            losses = u(-losses,lambda_ii, **kwargs)
+            losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **kwargs)
             with torch.no_grad():
                 lambdas = imagine_domains(self.hparams["glsd_K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
 
@@ -3459,7 +3462,7 @@ class GLSD(ERM):
             # Here the domains are non-weighted yet
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b)
-            losses = u(-losses,lambda_ii, **kwargs)
+            losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **kwargs)
             with torch.no_grad():
                 pi_worst, _, _ = extreme_affine_combination(losses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
                 pi_best, _, _  = extreme_affine_combination(losses, dominating=True,  order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
@@ -3483,7 +3486,7 @@ class GLSD(ERM):
             # Here the domains are non-weighted yet
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b), requires_grad=False, device=losses.device()
-            losses = u(-losses,lambda_ii, **kwargs)
+            losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **kwargs)
             with torch.no_grad():
                 pi_worst, _, _ = extreme_affine_combination(losses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
                 pi_best, _, _  = extreme_affine_combination(losses, dominating=True,  order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
