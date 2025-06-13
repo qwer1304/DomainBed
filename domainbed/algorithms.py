@@ -3554,7 +3554,7 @@ class GLSD(ERM):
         else: # don't run gradnorm for several rounds
             def penalty_weight(t, penalty_max=self.hparams['glsd_penalty_lambda'], penalty_min=0.1, 
                 tau=self.hparams['glsd_penalty_tau'], penalty_power=self.hparams['glsd_penalty_power']):
-                return penalty_min + np.maximum((1 - np.exp(-np.power(t.cpu().item()/tau),penalty_power))*penalty_max,0)
+                return penalty_min + np.maximum((1 - np.exp(-np.power(t.cpu().item()/tau,penalty_power))*penalty_max),0)
                 
             if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
                 losses = self.loss_balancer.update(losses)
