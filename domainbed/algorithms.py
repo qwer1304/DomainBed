@@ -3364,9 +3364,9 @@ class GLSD(ERM):
             return e
 
         def u(x, weights, **kwargs):
-            #return (x - E(x,weights,keepdim=True)).square()
+            return (x - E(x,weights,keepdim=True)).square()
             #return ((x - E(w,weights)).square() + 1e-6).sqrt()
-            return torch.log1p(torch.exp(x - kwargs["tau"])) 
+            #return torch.log1p(torch.exp(x - kwargs["tau"])) 
 
         def imagine_domains(K, n, lambda_min, device, include_base_domains=False):
             lambdas = generate_samples_from_affine_hull(K, n, lambda_min, device=device) # (n,K-1)
@@ -3552,8 +3552,11 @@ class GLSD(ERM):
                 + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
             )
         else: # don't run gradnorm for several rounds
-            def penalty_weight(t, penalty_max=self.hparams['glsd_penalty_lambda'], penalty_min=0.1, 
-                tau=self.hparams['glsd_penalty_tau'], penalty_power=self.hparams['glsd_penalty_power']):
+            def penalty_weight(t, 
+                penalty_min=self.hparams['glsd_penalty_lambda_min'], 
+                penalty_max=self.hparams['glsd_penalty_lambda_max'], 
+                tau=self.hparams['glsd_penalty_tau'], 
+                penalty_power=self.hparams['glsd_penalty_power']):
                 s_power = np.power(t.cpu().item()/tau,penalty_power)
                 s_exp = np.exp(-s_power)
                 s_1m = 1 - s_exp
