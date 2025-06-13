@@ -3559,7 +3559,7 @@ class GLSD(ERM):
                 s_1m = 1 - s_exp
                 p = np.maximum(s_1m*penalty_max, 0)
                 p = penalty_min + p
-                print(t, s_power, s_exp, s_1m, p)
+                #print(t.item(), s_power, s_exp, s_1m, p)
                 return p
                 
             if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
