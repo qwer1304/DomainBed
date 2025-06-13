@@ -3552,13 +3552,20 @@ class GLSD(ERM):
                 + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
             )
         else: # don't run gradnorm for several rounds
+            def penalty_weight(t, penalty_max=self.hparams['glsd_nll_lambda'], penalty_min=0.1, tau=100):
+                return penalty_min + (1 - np.exp(-t/tau)*penalty_max)
+                
             if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
                 losses = self.loss_balancer.update(losses)
+                pweight = penalty_weight(self.update_count - self.hparams["glsd_gradnorm_warmup"])
             elif self.update_count == self.hparams["glsd_gradnorm_warmup"]:
                 self.optimizer = self.init_optimizer()
                 losses = self.loss_balancer.update(losses)
-
-            loss_weights = {"penalty": torch.tensor([self.hparams['glsd_nll_lambda']], device=device), "nll": torch.tensor([1.0], device=device)}
+                pweight = penalty_weight(self.update_count - self.hparams["glsd_gradnorm_warmup"])
+            else:
+                pweight = 0.1
+                
+            loss_weights = {"penalty": torch.tensor([pweight], device=device), "nll": torch.tensor([1.0], device=device)}
             signed_weighted_losses = {
                 name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
             }
