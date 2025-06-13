@@ -3367,7 +3367,7 @@ class GLSD(ERM):
             if utype==0:
                 return (x - E(x,weights,keepdim=True)).square()
             elif utype==1:
-                return ((x - E(x,weights)).square() + 1e-6).sqrt()
+                return ((x - E(x,weights,keepdim=True)).square() + 1e-6).sqrt()
             elif utype==2:
                 return torch.log1p(torch.exp(x - kwargs["tau"])) 
             else:
