@@ -2892,8 +2892,11 @@ class GLSD(ERM):
         if self.hparams["glsd_optimizer"] == "sgd":
             base_optimizer_cls=torch.optim.SGD
             extra_pars = {"momentun": 0.9}
-        else:
+        elif self.hparams["glsd_optimizer"] == "adam":
             base_optimizer_cls=torch.optim.Adam
+            extra_pars = {}
+        elif self.hparams["glsd_optimizer"] == "adamw":
+            base_optimizer_cls=torch.optim.AdamW
             extra_pars = {}
             
         model_kwargs = {"lr": 1.0*self.hparams["lr"], "weight_decay": self.hparams['weight_decay'], **extra_pars}        
