@@ -3593,7 +3593,7 @@ class GLSD(ERM):
         if self.hparams["glsd_gradnorm_warmup"] is not None and self.update_count >= self.hparams["glsd_gradnorm_warmup"]:
             if self.update_count == self.hparams["glsd_gradnorm_warmup"]:
                 new_initial_weights = {k: v.item() for k,v in loss_weights.items() }
-                self.gradnorm_balancer.reset_weights(self.gradnorm_balancer, new_initial_weights)
+                self.gradnorm_balancer.reset_weights(new_initial_weights)
 
             loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses)  
 
