@@ -3583,7 +3583,6 @@ class GLSD(ERM):
             if self.update_count == self.hparams["glsd_gradnorm_warmup"]:
                 initial_weights = {k: v.item() for k,v in loss_weights.items() }
                 tau = {k: self.gradnorm_balancer.tau.tolist()[i] for i,k in enumerate(self.gradnorm_balancer.task_names)}
-                print(tau)
                 self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, 
                         alpha=self.hparams["glsd_gradnorm_alpha"], device=device, smoothing=self.hparams["glsd_gradnorm_smoothing"], 
                         tau=tau)
@@ -3603,6 +3602,8 @@ class GLSD(ERM):
         # Do the real backward pass on the total loss
         self.optimizer.zero_grad()
         loss.backward(retain_graph=True)
+        if self.hparams["glsd_gradnorm_warmup"] is not None and self.update_count >= self.hparams["glsd_gradnorm_warmup"]:
+            loss_gradnorm.backward(retain_graph=True)
 
         if False and (self.update_count > 440):
             print(self.update_count.item(), ":", get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), 
