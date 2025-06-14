@@ -3583,7 +3583,7 @@ class GLSD(ERM):
             if self.update_count == self.hparams["glsd_gradnorm_warmup"]:
                 initial_weights = {k: v.item() for k,v in loss_weights.items() }
                 self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, 
-                        alpha=hparams["glsd_gradnorm_alpha"], device=device, smoothing=hparams["glsd_gradnorm_smoothing"], 
+                        alpha=self.hparams["glsd_gradnorm_alpha"], device=device, smoothing=self.hparams["glsd_gradnorm_smoothing"], 
                         tau=self.gradnorm_balancer.tau)
 
             loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses)                    
