@@ -1,8 +1,8 @@
-numpy>=1.19.1
-pandas>=1.1.0
-pillow>=7.2.0
-torch>=1.7.0
-tqdm>=4.53.0
+numpy==1.26.4
+pandas==2.2.2
+pillow>=11.0.0
+torch>=2.0   # Kaggle may include 2.x; >=1.7 still fine
+tqdm~=4.53
 pytz>=2020.4
 outdated>=0.2.0
 ogb>=1.2.3
