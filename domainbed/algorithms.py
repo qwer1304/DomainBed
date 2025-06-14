@@ -3580,7 +3580,7 @@ class GLSD(ERM):
             losses = self.loss_balancer.update(losses)
             pweight = penalty_weight(self.update_count - self.hparams["glsd_lossbalancer_warmup"])
         elif self.update_count == self.hparams["glsd_lossbalancer_warmup"]:
-            self.optimizer = self.init_optimizer()
+            #self.optimizer = self.init_optimizer()
             losses = self.loss_balancer.update(losses)
             pweight = penalty_weight(self.update_count - self.hparams["glsd_lossbalancer_warmup"])
         else:
