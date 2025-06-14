@@ -3580,7 +3580,7 @@ class GLSD(ERM):
         grads = torch.tensor([0], device=device)
 
         if self.hparams["glsd_gradnorm_warmup"] is not None and self.update_count >= self.hparams["glsd_gradnorm_warmup"]:
-            if self.update_count == self.hparams["glsd_gradnorm_warmup"]:
+            if False and self.update_count == self.hparams["glsd_gradnorm_warmup"]:
                 initial_weights = {k: v.item() for k,v in loss_weights.items() }
                 tau = {k: self.gradnorm_balancer.tau.tolist()[i] for i,k in enumerate(self.gradnorm_balancer.task_names)}
                 self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, 
