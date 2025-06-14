@@ -2580,6 +2580,17 @@ class GradNormLossBalancer:
             tau = [v / mtau for v in tau.values()] 
         self.tau = torch.tensor(tau, device=device, requires_grad=False)
 
+    def reset_weights(self, new_initial_weights):
+        for k, new_val in new_initial_weights.items():
+            if k not in self.task_weights:
+                raise ValueError(f"Task '{k}' not found in existing task_weights.")
+            with torch.no_grad():
+                self.task_weights[k].copy_(torch.tensor(new_val, device=self.device))
+
+        # Optionally reset other internal state
+        self.initial_losses = {}
+        self.running_loss_rates = {k: 1.0 for k in self.task_names}
+
     def parameters(self):
         # So you can pass these to the optimizer
         return list(self.task_weights.values())
@@ -2668,7 +2679,7 @@ class GradNormLossBalancer:
             k: v.clone() for k, v in state_dict["initial_losses"].items()
         }
         self.running_loss_rates = state_dict["running_loss_rates"]
-        
+
 class LossBalancer:
     def __init__(self, losses, alpha=0.99):
         """
@@ -3580,12 +3591,9 @@ class GLSD(ERM):
         grads = torch.tensor([0], device=device)
 
         if self.hparams["glsd_gradnorm_warmup"] is not None and self.update_count >= self.hparams["glsd_gradnorm_warmup"]:
-            if False and self.update_count == self.hparams["glsd_gradnorm_warmup"]:
-                initial_weights = {k: v.item() for k,v in loss_weights.items() }
-                tau = {k: self.gradnorm_balancer.tau.tolist()[i] for i,k in enumerate(self.gradnorm_balancer.task_names)}
-                self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, 
-                        alpha=self.hparams["glsd_gradnorm_alpha"], device=device, smoothing=self.hparams["glsd_gradnorm_smoothing"], 
-                        tau=tau)
+            if self.update_count == self.hparams["glsd_gradnorm_warmup"]:
+                new_initial_weights = {k: v.item() for k,v in loss_weights.items() }
+                reset_weights(self.gradnorm_balancer, new_initial_weights)
 
             loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses)  
 
