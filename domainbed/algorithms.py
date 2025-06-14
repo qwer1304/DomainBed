@@ -3602,8 +3602,8 @@ class GLSD(ERM):
             name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
         }
         # Final total loss
-        losses = sum(signed_weighted_losses.values())
-        loss = losses + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
+        sloss = sum(signed_weighted_losses.values())
+        loss = sloss + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
 
         # Do the real backward pass on the total loss
         self.optimizer.zero_grad()
@@ -3611,7 +3611,7 @@ class GLSD(ERM):
 
         if (self.update_count % 100):
             print(self.update_count.item(), ":", get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), 
-                loss_gradnorm.item(), nll.item(), penalty.item(), loss.item(), loss.requires_grad, losses.requires_grad, grads.tolist())
+                loss_gradnorm.item(), nll.item(), penalty.item(), loss.item(), loss.requires_grad, sloss.requires_grad, grads.tolist())
 
         self.optimizer.step()
 
