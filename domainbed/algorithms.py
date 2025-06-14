@@ -3367,6 +3367,8 @@ class GLSD(ERM):
             return e
 
         def u(x, weights, utype, **kwargs):
+            if utype==-1:
+                return x
             if utype==0:
                 return -((x - E(x,weights,keepdim=True)).square())
             elif utype==1:
