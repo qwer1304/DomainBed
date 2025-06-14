@@ -3576,8 +3576,8 @@ class GLSD(ERM):
             pweight = self.hparams['glsd_penalty_lambda_min']
 
         loss_weights = {"penalty": torch.tensor([pweight], device=device), "nll": torch.tensor([1.0], device=device)}
-        loss_gradnorm = torch.tensor([0])
-        grads = torch.tensor([0])
+        loss_gradnorm = torch.tensor([0], device=device)
+        grads = torch.tensor([0], device=device)
 
         if self.hparams["glsd_gradnorm_warmup"] is not None and self.update_count >= self.hparams["glsd_gradnorm_warmup"]:
             if self.update_count == self.hparams["glsd_gradnorm_warmup"]:
