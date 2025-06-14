@@ -2584,7 +2584,8 @@ class GradNormLossBalancer:
         for k, new_val in new_initial_weights.items():
             if k not in self.task_weights:
                 raise ValueError(f"Task '{k}' not found in existing task_weights.")
-            self.task_weights[k].copy_(torch.tensor(new_val, device=self.device))
+            with torch.no_grad():
+                self.task_weights[k].copy_(torch.tensor(new_val, device=self.device))
 
         # Optionally reset other internal state
         self.initial_losses = {}
