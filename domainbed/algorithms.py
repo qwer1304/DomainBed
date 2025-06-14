@@ -2651,7 +2651,7 @@ class GradNormLossBalancer:
         normalized_weights = {k: normed_weights[i].detach().to(self.device) \
                 for i, k in enumerate(self.task_names)
         }
-
+        print(raw_weights, normalized_weights)
         return normalized_weights, gradnorm_loss, grads
 
     def state_dict(self):
@@ -3588,7 +3588,6 @@ class GLSD(ERM):
                         tau=tau)
 
             loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses)  
-            print(loss_gradnorm)
 
         # Combine weights
         signed_weighted_losses = {
@@ -3604,7 +3603,7 @@ class GLSD(ERM):
         self.optimizer.zero_grad()
         loss.backward(retain_graph=True)
 
-        if True and (self.update_count > 100):
+        if False and (self.update_count > 100):
             print(self.update_count.item(), ":", get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), 
                 loss_gradnorm.item(), nll.item(), penalty.item(), loss.item(), grads.tolist())
 
