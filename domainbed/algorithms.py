@@ -3552,53 +3552,52 @@ class GLSD(ERM):
             loss_signs = {"nll": 1.0, "penalty": 1.0, }
             losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze(), }
         
-        if False and self.update_count > self.hparams["glsd_gradnorm_warmup"]:
-            losses = {k: v/self.losses_sav[k] for k,v in losses.items()}
-            loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses)
+        def penalty_weight(t, 
+                    penalty_min=self.hparams['glsd_penalty_lambda_min'], 
+                    penalty_max=self.hparams['glsd_penalty_lambda_max'], 
+                    tau=self.hparams['glsd_penalty_tau'], 
+                    penalty_power=self.hparams['glsd_penalty_power']):
+                    s_power = np.power(t.cpu().item()/tau,penalty_power
+        )
+            s_exp = np.exp(-s_power)
+            s_1m = 1 - s_exp
+            p = np.maximum(s_1m*penalty_max, 0)
+            p = penalty_min + p
+            #print(t.item(), s_power, s_exp, s_1m, p)
+            return p
 
-            # Combine weights
-            signed_weighted_losses = {
-                name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
-            }
-            # Final total loss
-            loss = (
-                sum(signed_weighted_losses.values())
-                + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
-            )
-        else: # don't run gradnorm for several rounds
-            def penalty_weight(t, 
-                penalty_min=self.hparams['glsd_penalty_lambda_min'], 
-                penalty_max=self.hparams['glsd_penalty_lambda_max'], 
-                tau=self.hparams['glsd_penalty_tau'], 
-                penalty_power=self.hparams['glsd_penalty_power']):
-                s_power = np.power(t.cpu().item()/tau,penalty_power)
-                s_exp = np.exp(-s_power)
-                s_1m = 1 - s_exp
-                p = np.maximum(s_1m*penalty_max, 0)
-                p = penalty_min + p
-                #print(t.item(), s_power, s_exp, s_1m, p)
-                return p
-                
-            if self.update_count > self.hparams["glsd_gradnorm_warmup"]:
-                losses = self.loss_balancer.update(losses)
-                pweight = penalty_weight(self.update_count - self.hparams["glsd_gradnorm_warmup"])
-            elif self.update_count == self.hparams["glsd_gradnorm_warmup"]:
-                self.optimizer = self.init_optimizer()
-                losses = self.loss_balancer.update(losses)
-                pweight = penalty_weight(self.update_count - self.hparams["glsd_gradnorm_warmup"])
-            else:
-                pweight = 0.1
-                
-            loss_weights = {"penalty": torch.tensor([pweight], device=device), "nll": torch.tensor([1.0], device=device)}
-            signed_weighted_losses = {
-                name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
-            }
-            loss = (
-                sum(signed_weighted_losses.values())
-            )
-            loss_gradnorm = torch.tensor([0])
-            grads = torch.tensor([0])
-            self.losses_sav = {k: v.detach() for k,v in losses.items()}
+        if self.update_count > self.hparams["glsd_lossbalancer_warmup"]:
+            losses = self.loss_balancer.update(losses)
+            pweight = penalty_weight(self.update_count - self.hparams["glsd_lossbalancer_warmup"])
+        elif self.update_count == self.hparams["glsd_lossbalancer_warmup"]:
+            self.optimizer = self.init_optimizer()
+            losses = self.loss_balancer.update(losses)
+            pweight = penalty_weight(self.update_count - self.hparams["glsd_lossbalancer_warmup"])
+        else:
+            pweight = self.hparams['glsd_penalty_lambda_min']
+
+        loss_weights = {"penalty": torch.tensor([pweight], device=device), "nll": torch.tensor([1.0], device=device)}
+        loss_gradnorm = torch.tensor([0])
+        grads = torch.tensor([0])
+
+        if self.hparams["glsd_gradnorm_warmup"] is not None and self.update_count >= self.hparams["glsd_gradnorm_warmup"]:
+            if self.update_count == self.hparams["glsd_gradnorm_warmup"]:
+                initial_weights = {k: v.item() for k,v in loss_weights.items() }
+                self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, 
+                        alpha=hparams["glsd_gradnorm_alpha"], device=device, smoothing=hparams["glsd_gradnorm_smoothing"], 
+                        tau=self.gradnorm_balancer.tau)
+
+            loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses)                    
+
+        # Combine weights
+        signed_weighted_losses = {
+            name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
+        }
+        # Final total loss
+        loss = (
+            sum(signed_weighted_losses.values())
+            + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
+        )
 
         # Do the real backward pass on the total loss
         self.optimizer.zero_grad()
