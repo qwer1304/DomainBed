@@ -2662,7 +2662,7 @@ class GradNormLossBalancer:
         normalized_weights = {k: normed_weights[i].detach().to(self.device) \
                 for i, k in enumerate(self.task_names)
         }
-        print(raw_weights, normalized_weights)
+        #print(raw_weights, normalized_weights)
         return normalized_weights, gradnorm_loss, grads
 
     def state_dict(self):
