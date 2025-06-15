@@ -3463,6 +3463,8 @@ class GLSD(ERM):
 
             losses = {"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll}
             loss_signs = {"fsd": 1.0, "ssd": 1.0, "nll": -1.0, }   # this makes NLL adversarial
+            loss_names = ["fsd"]
+            penalty_names = ["ssd", "nll"]
       
         elif self.hparams["glsd_as_regularizer"] == "imagined_domains":  
             # Here the domains are non-weighted yet
@@ -3562,7 +3564,16 @@ class GLSD(ERM):
             # Sign for each task
             loss_signs = {"nll": 1.0, "penalty": 1.0, }
             losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze(), }
+            loss_names = ["nll"]
+            penalty_names = ["penalty"]
         
+        """ --------------------------------------------------------------
+        Determine weights, run optimizer
+           Inputs: losses
+                    loss_signs
+                    loss_names
+                    penalty_names
+        """
         def penalty_weight(t, 
                     penalty_min=self.hparams['glsd_penalty_lambda_min'], 
                     penalty_max=self.hparams['glsd_penalty_lambda_max'], 
@@ -3586,9 +3597,11 @@ class GLSD(ERM):
         else:
             pweight = self.hparams['glsd_penalty_lambda_min']
 
-        loss_weights = {"penalty": torch.tensor([pweight], device=device), "nll": torch.tensor([1.0], device=device)}
+        loss_weights = {k: torch.tensor([pweight], device=device) for k in loss_names}
+        penalty_weights = {k: torch.tensor([1.0], device=device) for k in penalty_names}
+        loss_weights = dict(**loss_weights, **penalty_weights)
         loss_gradnorm = torch.tensor([0], device=device)
-        grads = torch.tensor([0], device=device)
+        grads = torch.zeros(len(loss_weights), device=device)
 
         if self.hparams["glsd_gradnorm_warmup"] is not None and self.update_count >= self.hparams["glsd_gradnorm_warmup"]:
             if self.update_count == self.hparams["glsd_gradnorm_warmup"]:
