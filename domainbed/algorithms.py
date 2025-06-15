@@ -3599,8 +3599,8 @@ class GLSD(ERM):
         else:
             pweight = self.hparams['glsd_penalty_lambda_min']
 
-        loss_weights = {k: torch.tensor([pweight], device=device) for k in loss_names}
-        penalty_weights = {k: torch.tensor([1.0], device=device) for k in penalty_names}
+        loss_weights = {k: torch.tensor([1.0], device=device) for k in loss_names}
+        penalty_weights = {k: torch.tensor([pweight], device=device) for k in penalty_names}
         loss_weights = dict(**loss_weights, **penalty_weights)
         loss_gradnorm = torch.tensor([0], device=device)
         grads = torch.zeros(len(loss_weights), device=device)
