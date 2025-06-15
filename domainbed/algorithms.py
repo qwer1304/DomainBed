@@ -3392,6 +3392,12 @@ class GLSD(ERM):
                 return 1 - torch.exp(-x*kwargs["tau"])
             elif utype==5:
                 return (x - E(x,weights,keepdim=True)) / (torch.std(x, keepdim=True) + 1e-8)
+            elif utype==6:
+                mu_i = x.mean(1,keepdim=True)
+                sigma_i2 = (x - mu_i).square().mean(1,keepdim=True)
+                mu = E(x,weights,keepdim=True)
+                sigma_2 = ((sigma_i2 + (mu_i - mu).square()) * weights).sum(1,keepdim=True)
+                return sigma_2
             else:
                 assert False, f"Unknown u() type {utype}"
     
