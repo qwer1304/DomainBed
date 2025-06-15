@@ -3390,6 +3390,8 @@ class GLSD(ERM):
                 return torch.sigmoid(x - kwargs["tau"])
             elif utype==4:
                 return 1 - torch.exp(-x*kwargs["tau"])
+            elif utype==5:
+                return (x - E(x,weights,keepdim=True)) / (torch.std(x, keepdim=True) + 1e-8)
             else:
                 assert False, f"Unknown u() type {utype}"
     
