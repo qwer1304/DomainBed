@@ -3444,7 +3444,7 @@ class GLSD(ERM):
                 min_theta max_lambda E[-u] = min_theta max_lambda -E[u] = min_theta min_lambda E[u] 
             This means we're looking for a dominated environment (one with smallest u)
             """
-            lambdas = prepare_lambdas(self, -losses, lambda_min, device, dominating=True, domainated=False)
+            lambdas = prepare_lambdas(self, -losses, lambda_min, device, dominating=True, dominated=False)
             K = lambdas.size()[1]
             
             (sorted_eta, envs, _), _, _ = calculate_Fks(-losses)
@@ -3496,7 +3496,7 @@ class GLSD(ERM):
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b)
             losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **kwargs)
-            lambdas = prepare_lambdas(self, losses, lambda_min, device, dominating=False, domainated=False)
+            lambdas = prepare_lambdas(self, losses, lambda_min, device, dominating=False, dominated=False)
 
         elif self.hparams["glsd_as_regularizer"] == "imagined_domains&bestworst" or self.hparams["glsd_as_regularizer"] == "VREx":  
             """
@@ -3511,7 +3511,7 @@ class GLSD(ERM):
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b)
             losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **kwargs)
-            lambdas = prepare_lambdas(self, losses, lambda_min, device, dominating=True, domainated=True)
+            lambdas = prepare_lambdas(self, losses, lambda_min, device, dominating=True, dominated=True)
                         
         elif self.hparams["glsd_as_regularizer"] == "bestworst": 
             """
@@ -3526,7 +3526,7 @@ class GLSD(ERM):
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b), requires_grad=False, device=losses.device()
             losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **kwargs)
-            lambdas = prepare_lambdas(self, losses, lambda_min, device, dominating=True, domainated=True)
+            lambdas = prepare_lambdas(self, losses, lambda_min, device, dominating=True, dominated=True)
 
         else:
             torch._assert(False, f'Unknown method {self.hparams["glsd_as_regularizer"]}')
