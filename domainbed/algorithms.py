@@ -3487,6 +3487,7 @@ class GLSD(ERM):
                 losses_dict = {"cls": loss_fsd, }
       
         elif self.hparams["glsd_classifier_loss"] == "nll": 
+                print(losses.size(),losses)
                 losses_dict = {"cls": losses, }
                 loss_signs = {"cls": 1.0, }
                 loss_names = ["cls"]
@@ -3663,9 +3664,6 @@ class GLSD(ERM):
         # Do the real backward pass on the total loss
         self.optimizer.zero_grad()
         loss.backward(retain_graph=True)
-
-        if True and (self.update_count.item(), ":", self.update_count >= 300):
-            print(losses_dict)
 
         if False and (self.update_count % 100 == 0):
             print(self.update_count.item(), ":", get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), 
