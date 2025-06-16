@@ -2947,17 +2947,10 @@ class GLSD(ERM):
         pi_init /= pi_init.sum(1, keepdim=True)
         self.register_buffer('pi_prev', pi_init)
         self.register_buffer('margin', torch.tensor([0.2]))
-        if hparams["glsd_as_regularizer"] == "no":
-            initial_weights = {"fsd": 1.0, "nll": 1.0}
-            losses_to_balance = [("fsd",None), ("nll",None)]
-            if SSD:
-                initial_weights["ssd"] = 1.0
-                losses_to_balance.append(("ssd",None))
-            tau = None
-        else:
-            initial_weights = {"penalty": 1.0, "nll": 1.0, }
-            losses_to_balance = [("penalty",None), ("nll",None)]
-            tau = {"nll": hparams["glsd_nll_lambda"], "penalty": 1.0, } # smaller tau = faster learning
+        initial_weights = {"cls": 1.0, "penalty": 1.0, }
+        losses_to_balance = [("cls",None), ("penalty",None)]
+        tau = None
+        #tau = {"nll": hparams["glsd_nll_lambda"], "penalty": 1.0, } # smaller tau = faster learning
         
         self.loss_balancer = LossBalancer(losses_to_balance, alpha=hparams["glsd_lossbalancer_alpha"])
         self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, 
@@ -3486,19 +3479,17 @@ class GLSD(ERM):
             data = {"sorted_eta": sorted_eta.detach(), "envs": envs.detach()} # assume we're no backproping the error to previous rounds
             self.buffer.append(data)
 
-            if self.SSD:
-                losses_dict = {"ssd": loss_ssd, }
-                loss_signs = {"ssd": 1.0, }
-                loss_names = ["ssd"]
+            loss_signs = {"cls": 1.0, }
+            loss_names = ["cls"]
+            if self.SSD
+                losses_dict = {"cls": loss_ssd, }
             else:
-                losses_dict = {"fsd": loss_fsd, }
-                loss_signs = {"fsd": 1.0, }
-                loss_names = ["fsd"]
+                losses_dict = {"cls": loss_fsd, }
       
         elif self.hparams["glsd_classifier_loss"] == "nll": 
-                losses_dict = {"nll": losses, }
-                loss_signs = {"nll": 1.0, }
-                loss_names = ["nll"]
+                losses_dict = {"cls": losses, }
+                loss_signs = {"cls": 1.0, }
+                loss_names = ["cls"]
                 
         else:
             assert False, f'Unknown classifier loss {self.hparams["glsd_classifier_loss"]}'
@@ -3542,10 +3533,10 @@ class GLSD(ERM):
 
         elif self.hparams["glsd_regularizer"] == "nll" or \
              self.hparams["glsd_regularizer"] == "-nll":
-                losses_dict = dict(**losses_dict, nll=losses)
+                losses_dict = dict(**losses_dict, penalty=losses)
                 reg_sign = 1.0 if self.hparams["glsd_regularizer"]=="nll" else -1.0
-                loss_signs = dict(**loss_signs, nll=reg_sign)
-                penalty_names = ["nll"]
+                loss_signs = dict(**loss_signs, penalty=reg_sign)
+                penalty_names = ["penalty"]
         else:
             assert False, f'Unknown regulaizer {self.hparams["glsd_regularizer"]}'
             
