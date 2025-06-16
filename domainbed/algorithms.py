@@ -2949,8 +2949,7 @@ class GLSD(ERM):
         self.register_buffer('margin', torch.tensor([0.2]))
         initial_weights = {"loss_cls": 1.0, "penalty": 1.0, }
         losses_to_balance = [("loss_cls",None), ("penalty",None)]
-        tau = None
-        #tau = {"nll": hparams["glsd_nll_lambda"], "penalty": 1.0, } # smaller tau = faster learning
+        tau = {"loss_cls": hparams["glsd_gradnorm_cls_tau"], "penalty": hparams["glsd_gradnorm_penalty_tau"], } # smaller tau = faster learning
         
         self.loss_balancer = LossBalancer(losses_to_balance, alpha=hparams["glsd_lossbalancer_alpha"])
         self.gradnorm_balancer = GradNormLossBalancer(self, initial_weights=initial_weights, 
