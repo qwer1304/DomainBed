@@ -3418,7 +3418,7 @@ class GLSD(ERM):
             n = losses.size()[0]
             with torch.no_grad():
                 # (n,K'-1)
-                lambdas = imagine_domains(self.hparams["K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
+                lambdas = imagine_domains(self.hparams["glsd_K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
                 if dominated:
                     pi_worst, _, _ = extreme_affine_combination(losses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
                     # (n,)          (n,)
