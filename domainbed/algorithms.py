@@ -3380,7 +3380,7 @@ class GLSD(ERM):
 
         def prepare_lambdas(self, losses, lambda_min, device, dominating=False, dominated=False):
             n = losses.size()[0]
-            assert (self.hparams["glsd_K"] > 0 or dominating or dominated), "No lambdas requested!"
+            assert (self.hparams["glsd_K"] > 0 or dominating or dominated) or self.hparams["glsd_dominate_all_domains"], "No lambdas requested!"
             with torch.no_grad():
                 # (n,K'-1)
                 lambdas = imagine_domains(self.hparams["glsd_K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
@@ -3500,7 +3500,7 @@ class GLSD(ERM):
             losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **u_kwargs)
             lambdas = prepare_lambdas(self, losses, lambda_min, device, dominating=False, dominated=False)
 
-        elif self.hparams["glsd_regularizer"] == "imagined_domains&bestworst" or self.hparams["glsd_regularizer"] == "VREx":  
+        elif self.hparams["glsd_regularizer"] == "imagined_domains&bestworst":  
             """
             Use Fk of the different domains as regularizer:
             1. Calculate Fk for all domains (including the imagined ones) for all etas and configurations.
@@ -3514,6 +3514,13 @@ class GLSD(ERM):
             lambda_ii = torch.ones_like(losses) / b # (n,b)
             losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **u_kwargs)
             lambdas = prepare_lambdas(self, losses, lambda_min, device, dominating=True, dominated=True)
+                        
+        elif self.hparams["glsd_regularizer"] == "VREx":  
+            # Here the domains are non-weighted yet
+            b = losses.size()[1]
+            lambda_ii = torch.ones_like(losses) / b # (n,b)
+            losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **u_kwargs)
+            lambdas = prepare_lambdas(self, losses, lambda_min, device, dominating=False, dominated=False)
                         
         elif self.hparams["glsd_regularizer"] == "bestworst": 
             """
