@@ -3396,7 +3396,7 @@ class GLSD(ERM):
                 mu_i = x.mean(1,keepdim=True)
                 sigma_i2 = (x - mu_i).square().mean(1,keepdim=True)
                 mu = E(x,weights,keepdim=True)
-                sigma_2 = ((sigma_i2 + (mu_i - mu).square()) * weights).sum(1,keepdim=True)
+                sigma_2 = ((sigma_i2 + (mu_i - mu).square()) * weights).sum(1,keepdim=True) # (n,1)
                 return sigma_2
             else:
                 assert False, f"Unknown u() type {utype}"
@@ -3482,7 +3482,7 @@ class GLSD(ERM):
             with torch.no_grad():
                 lambdas = imagine_domains(self.hparams["glsd_K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
 
-        elif self.hparams["glsd_as_regularizer"] == "imagined_domains&bestworst":  
+        elif self.hparams["glsd_as_regularizer"] == "imagined_domains&bestworst" or self.hparams["glsd_as_regularizer"] == "VREx":  
             """
             Use Fk of the different domains as regularizer:
             1. Calculate Fk for all domains (including the imagined ones) for all etas and configurations.
@@ -3575,6 +3575,35 @@ class GLSD(ERM):
             loss_names = ["nll"]
             penalty_names = ["penalty"]
         
+        elif self.hparams["glsd_as_regularizer"] == "VREx":
+            
+            lambdas = lambdas.detach() # (n,K)
+            K = lambdas.size()[1] # update number of lambdas
+            b = losses.size()[1]
+            loss_means_list = []
+            for i in range(K):
+                lambda_i = lambdas[:,i].squeeze() # (n,)
+                # Need lambdas: (n,weights)
+                # Here the domains are non-weighted yet
+                (sorted_eta, envs, _), _, _ = calculate_Fks(losses) # (nb,)
+                # Create true affine combination
+                lambda_ii = torch.tensor([lambda_i[int(e.item())] for e in envs], device=device) / sorted_eta.size()[0] # (nb,)
+                (sorted_eta, _, lambdas_sorted_all), _, _ = calculate_Fks(sorted_eta.unsqueeze(0), lambda_ii.unsqueeze(0)) # (1, nb)
+                l_mean = E(sorted_eta, lambdas_sorted_all).squeeze() # ()
+                               
+                loss_means_list.append(l_mean)
+            
+            # Stack along new dim = -1 (K,)
+            loss_mean = torch.stack(loss_means_list, dim=-1)
+            
+            penalty = loss_mean.var()
+
+            # Sign for each task
+            loss_signs = {"nll": 1.0, "penalty": 1.0, }
+            losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze(), }
+            loss_names = ["nll"]
+            penalty_names = ["penalty"]
+
         """ --------------------------------------------------------------
         Determine weights, run optimizer
            Inputs: losses
