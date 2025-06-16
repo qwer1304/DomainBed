@@ -165,7 +165,7 @@ class ColoredMNIST_org(MultipleEnvironmentMNIST):
     ENVIRONMENTS = ['+90%', '+80%', '-90%']
 
     def __init__(self, root, test_envs, hparams):
-        super(ColoredMNIST, self).__init__(root, [0.1, 0.2, 0.9],
+        super(ColoredMNIST_org, self).__init__(root, [0.1, 0.2, 0.9],
                                          self.color_dataset, (2, 28, 28,), 2)
 
         self.input_shape = (2, 28, 28,)
