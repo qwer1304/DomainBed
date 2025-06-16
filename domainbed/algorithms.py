@@ -2947,8 +2947,8 @@ class GLSD(ERM):
         pi_init /= pi_init.sum(1, keepdim=True)
         self.register_buffer('pi_prev', pi_init)
         self.register_buffer('margin', torch.tensor([0.2]))
-        initial_weights = {"cls": 1.0, "penalty": 1.0, }
-        losses_to_balance = [("cls",None), ("penalty",None)]
+        initial_weights = {"loss_cls": 1.0, "penalty": 1.0, }
+        losses_to_balance = [("loss_cls",None), ("penalty",None)]
         tau = None
         #tau = {"nll": hparams["glsd_nll_lambda"], "penalty": 1.0, } # smaller tau = faster learning
         
@@ -3479,17 +3479,17 @@ class GLSD(ERM):
             data = {"sorted_eta": sorted_eta.detach(), "envs": envs.detach()} # assume we're no backproping the error to previous rounds
             self.buffer.append(data)
 
-            loss_signs = {"cls": 1.0, }
-            loss_names = ["cls"]
+            loss_signs = {"loss_cls": 1.0, }
+            loss_names = ["loss_cls"]
             if self.SSD:
-                losses_dict = {"cls": loss_ssd, }
+                losses_dict = {"loss_cls": loss_ssd, }
             else:
-                losses_dict = {"cls": loss_fsd, }
+                losses_dict = {"loss_cls": loss_fsd, }
       
         elif self.hparams["glsd_classifier_loss"] == "nll": 
-                losses_dict = {"cls": losses.sum(1).mean(), } # sum over batch, mean over envs
-                loss_signs = {"cls": 1.0, }
-                loss_names = ["cls"]
+                losses_dict = {"loss_cls": losses.sum(1).mean(), } # sum over batch, mean over envs
+                loss_signs = {"loss_cls": 1.0, }
+                loss_names = ["loss_cls"]
                 
         else:
             assert False, f'Unknown classifier loss {self.hparams["glsd_classifier_loss"]}'
