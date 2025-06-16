@@ -3481,7 +3481,7 @@ class GLSD(ERM):
 
             loss_signs = {"cls": 1.0, }
             loss_names = ["cls"]
-            if self.SSD
+            if self.SSD:
                 losses_dict = {"cls": loss_ssd, }
             else:
                 losses_dict = {"cls": loss_fsd, }
