@@ -3414,7 +3414,7 @@ class GLSD(ERM):
             return lambdas
                        
 
-        def prepare_lambdas(self, losses, lambda_min, device, dominating=False, domainated=False):
+        def prepare_lambdas(self, losses, lambda_min, device, dominating=False, dominated=False):
             n = losses.size()[0]
             with torch.no_grad():
                 # (n,K'-1)
