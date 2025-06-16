@@ -3589,7 +3589,7 @@ class GLSD(ERM):
                 # Create true affine combination
                 lambda_ii = torch.tensor([lambda_i[int(e.item())] for e in envs], device=device) / sorted_eta.size()[0] # (nb,)
                 (sorted_eta, _, lambdas_sorted_all), _, _ = calculate_Fks(sorted_eta.unsqueeze(0), lambda_ii.unsqueeze(0)) # (1, nb)
-                l_mean = E(sorted_eta, lambdas_sorted_all).squeeze() # ()
+                l_mean = E(sorted_eta.unsqueeze(1), lambdas_sorted_all.unsqueeze(1)) # ()
                                
                 loss_means_list.append(l_mean)
             
