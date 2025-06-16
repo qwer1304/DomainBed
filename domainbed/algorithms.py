@@ -3413,6 +3413,29 @@ class GLSD(ERM):
                 lambdas = torch.cat([lambdas, one_hot],dim=1)
             return lambdas
                        
+
+        def prepare_lambdas(self, losses, lambda_min, device, dominating=False, domainated=False):
+            n = losses.size()[0]
+            with torch.no_grad():
+                # (n,K'-1)
+                lambdas = imagine_domains(self.hparams["K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
+                if dominated:
+                    pi_worst, _, _ = extreme_affine_combination(losses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
+                    # (n,)          (n,)
+                    lambda_worst =  make_extreme_lambda(self, pi_worst, worst=0, lambda_min=lambda_min).unsqueeze(1).to(device)
+                    # (n,K')          (n,K'-1)           (n,1)   
+                    lambdas = torch.cat([lambdas, lambda_worst])
+                else:
+                    lambda_worst = torch.empty
+                if dominating:
+                    pi_best, _, _  = extreme_affine_combination(losses, dominating=True,  order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
+                    # (n,)          (n,)
+                    lambda_best  =  make_extreme_lambda(self, pi_best,  worst=1, lambda_min=lambda_min).unsqueeze(1).to(device)
+                    lambdas = torch.cat([lambdas, lambda_best])
+            
+            lambdas = lambdas.detach()
+            return lambdas
+
         kwargs = self.hparams["glsd_u_kwargs"]
         if self.hparams["glsd_as_regularizer"] == "no":
             """
@@ -3421,16 +3444,10 @@ class GLSD(ERM):
                 min_theta max_lambda E[-u] = min_theta max_lambda -E[u] = min_theta min_lambda E[u] 
             This means we're looking for a dominated environment (one with smallest u)
             """
-            lambdas = imagine_domains(self.hparams["glsd_K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
+            lambdas = prepare_lambdas(self, -losses, lambda_min, device, dominating=True, domainated=False)
             K = lambdas.size()[1]
-            pi, sorted_eta, envs = extreme_affine_combination(-losses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
-            # (n,)          (n,)
-            lambda_worst =  make_extreme_lambda(self, pi, worst=0, lambda_min=lambda_min).to(device)
-
-            # (n,K)               (n,K-1)   (n,)
-            lambdas = torch.cat([lambdas,   lambda_worst.unsqueeze(1)],dim=1) # always include the worst affine combination
-            K += 1 # count added lambda
-            lambdas = lambdas.detach()
+            
+            (sorted_eta, envs, _), _, _ = calculate_Fks(-losses)
 
             if len(self.buffer) == 0:
                 data = {"sorted_eta": sorted_eta.detach().to(device), "envs": envs} # assume we're no backproping the error to previous rounds           
@@ -3479,8 +3496,7 @@ class GLSD(ERM):
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b)
             losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **kwargs)
-            with torch.no_grad():
-                lambdas = imagine_domains(self.hparams["glsd_K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
+            lambdas = prepare_lambdas(self, losses, lambda_min, device, dominating=False, domainated=False)
 
         elif self.hparams["glsd_as_regularizer"] == "imagined_domains&bestworst" or self.hparams["glsd_as_regularizer"] == "VREx":  
             """
@@ -3495,16 +3511,7 @@ class GLSD(ERM):
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b)
             losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **kwargs)
-            with torch.no_grad():
-                pi_worst, _, _ = extreme_affine_combination(losses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
-                pi_best, _, _  = extreme_affine_combination(losses, dominating=True,  order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
-                # (n,)          (n,)
-                lambda_worst =  make_extreme_lambda(self, pi_worst, worst=0, lambda_min=lambda_min)
-                lambda_best  =  make_extreme_lambda(self, pi_best,  worst=1, lambda_min=lambda_min)
-                # (n,K)
-                lambdas = imagine_domains(self.hparams["glsd_K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
-                # (n,K+2)             (n,K)           (n,2)   
-                lambdas = torch.cat([lambdas, torch.stack((lambda_worst, lambda_best) ,dim=-1).to(device)], dim=-1)
+            lambdas = prepare_lambdas(self, losses, lambda_min, device, dominating=True, domainated=True)
                         
         elif self.hparams["glsd_as_regularizer"] == "bestworst": 
             """
@@ -3519,15 +3526,8 @@ class GLSD(ERM):
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b), requires_grad=False, device=losses.device()
             losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **kwargs)
-            with torch.no_grad():
-                pi_worst, _, _ = extreme_affine_combination(losses, dominating=False, order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
-                pi_best, _, _  = extreme_affine_combination(losses, dominating=True,  order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
-                # (n,)          (n,)
-                lambda_worst =  make_extreme_lambda(self, pi_worst, worst=0, lambda_min=lambda_min)
-                lambda_best  =  make_extreme_lambda(self, pi_best,  worst=1, lambda_min=lambda_min)
-                # (n,2)                (n,)          (n,)
-                lambdas = torch.stack((lambda_worst, lambda_best) ,dim=-1).to(device)
-            
+            lambdas = prepare_lambdas(self, losses, lambda_min, device, dominating=True, domainated=True)
+
         else:
             torch._assert(False, f'Unknown method {self.hparams["glsd_as_regularizer"]}')
             
@@ -3535,7 +3535,6 @@ class GLSD(ERM):
             self.hparams["glsd_as_regularizer"] == "bestworst" or \
             self.hparams["glsd_as_regularizer"] == "imagined_domains&bestworst": 
             
-            lambdas = lambdas.detach() # (n,K)
             K = lambdas.size()[1] # update number of lambdas
             b = losses.size()[1]
             loss_ssd_list = []
@@ -3577,7 +3576,6 @@ class GLSD(ERM):
         
         elif self.hparams["glsd_as_regularizer"] == "VREx":
             
-            lambdas = lambdas.detach() # (n,K)
             K = lambdas.size()[1] # update number of lambdas
             b = losses.size()[1]
             loss_means_list = []
