@@ -3664,6 +3664,9 @@ class GLSD(ERM):
         self.optimizer.zero_grad()
         loss.backward(retain_graph=True)
 
+        if True and (self.update_count.item(), ":", self.update_count >= 300):
+            print(losses_dict)
+
         if False and (self.update_count % 100 == 0):
             print(self.update_count.item(), ":", get_total_grad_norm(self.network), get_total_grad_norm(self.gradnorm_balancer), 
                 loss_gradnorm.item(), nll.item(), penalty.item(), loss.item(), grads.tolist())
