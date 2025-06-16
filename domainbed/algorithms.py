@@ -3487,7 +3487,7 @@ class GLSD(ERM):
                 losses_dict = {"cls": loss_fsd, }
       
         elif self.hparams["glsd_classifier_loss"] == "nll": 
-                losses_dict = {"cls": losses, }
+                losses_dict = {"cls": losses.sum(1).mean(), } # sum over batch, mean over envs
                 loss_signs = {"cls": 1.0, }
                 loss_names = ["cls"]
                 
