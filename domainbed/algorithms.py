@@ -3424,14 +3424,14 @@ class GLSD(ERM):
                     # (n,)          (n,)
                     lambda_worst =  make_extreme_lambda(self, pi_worst, worst=0, lambda_min=lambda_min).unsqueeze(1).to(device)
                     # (n,K')          (n,K'-1)           (n,1)   
-                    lambdas = torch.cat([lambdas, lambda_worst])
+                    lambdas = torch.cat([lambdas, lambda_worst], dim=1)
                 else:
                     lambda_worst = torch.empty
                 if dominating:
                     pi_best, _, _  = extreme_affine_combination(losses, dominating=True,  order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
                     # (n,)          (n,)
                     lambda_best  =  make_extreme_lambda(self, pi_best,  worst=1, lambda_min=lambda_min).unsqueeze(1).to(device)
-                    lambdas = torch.cat([lambdas, lambda_best])
+                    lambdas = torch.cat([lambdas, lambda_best], dim=1)
             
             lambdas = lambdas.detach()
             return lambdas
