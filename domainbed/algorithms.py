@@ -3629,6 +3629,7 @@ class GLSD(ERM):
             #print(t.item(), s_power, s_exp, s_1m, p)
             return p
 
+        print(losses_dict,loss_signs,loss_names,penalty_names)
         if self.update_count > self.hparams["glsd_lossbalancer_warmup"]:
             losses_dict = self.loss_balancer.update(losses_dict)
             pweight = penalty_weight(self.update_count - self.hparams["glsd_lossbalancer_warmup"])
