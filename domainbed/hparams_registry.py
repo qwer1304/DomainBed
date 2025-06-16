@@ -204,8 +204,6 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('glsd_lossbalancer_warmup', 100, lambda r: 100)
         _hparam('glsd_nll_threshold_sample', 3, lambda r: r.uniform(0.1, 4))
         _hparam('glsd_nll_threshold_global', 70, lambda r: r.uniform(60, 90))
-        _hparam('glsd_gradnorm_cls_tau', 1.0, lambda r: 1.0)
-        _hparam('glsd_gradnorm_penalty_tau', 1.0, lambda r: 1.0)
         _hparam('glsd_penalty_lambda_max', 10, lambda r: 10)
         _hparam('glsd_optimizer', "adam", lambda r: "adam")
         _hparam('glsd_penalty_lambda_min', 0.1, lambda r: 0.1)
