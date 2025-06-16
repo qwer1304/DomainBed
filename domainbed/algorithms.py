@@ -3630,11 +3630,11 @@ class GLSD(ERM):
             return p
 
         if self.update_count > self.hparams["glsd_lossbalancer_warmup"]:
-            losses = self.loss_balancer.update(losses_dict)
+            losses_dict = self.loss_balancer.update(losses_dict)
             pweight = penalty_weight(self.update_count - self.hparams["glsd_lossbalancer_warmup"])
         elif self.update_count == self.hparams["glsd_lossbalancer_warmup"]:
             self.optimizer = self.init_optimizer()
-            losses = self.loss_balancer.update(losses_dict)
+            losses_dict = self.loss_balancer.update(losses_dict)
             pweight = penalty_weight(self.update_count - self.hparams["glsd_lossbalancer_warmup"])
         else:
             pweight = self.hparams['glsd_penalty_lambda_min']
@@ -3654,7 +3654,7 @@ class GLSD(ERM):
 
         # Combine weights
         signed_weighted_losses = {
-            name: loss_signs[name] * loss_weights[name] * losses[name] for name in loss_weights
+            name: loss_signs[name] * loss_weights[name] * losses_dict[name] for name in loss_weights
         }
         # Final total loss
         sloss = sum(signed_weighted_losses.values())
@@ -3672,7 +3672,7 @@ class GLSD(ERM):
 
         self.update_count += 1
 
-        scalar_losses = {k: v.item() for k, v in losses.items()}
+        scalar_losses = {k: v.item() for k, v in losses_dict.items()}
         scalar_loss_weights = {'w_'+k: v.item() for k, v in loss_weights.items()}
         return {'loss': loss.item(), **scalar_losses, 'loss_gradnorm': loss_gradnorm.item(), **scalar_loss_weights, }      
 
