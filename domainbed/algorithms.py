@@ -3487,7 +3487,6 @@ class GLSD(ERM):
                 losses_dict = {"cls": loss_fsd, }
       
         elif self.hparams["glsd_classifier_loss"] == "nll": 
-                print(losses.size(),losses)
                 losses_dict = {"cls": losses, }
                 loss_signs = {"cls": 1.0, }
                 loss_names = ["cls"]
