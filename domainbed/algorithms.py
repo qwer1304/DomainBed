@@ -3435,8 +3435,8 @@ class GLSD(ERM):
         nll = soft_upper_clamp(losses, self.hparams["glsd_nll_threshold_sample"])
         nll = nll.sum(1).mean().unsqueeze(0) # sum over batch, mean over envs
 
-        kwargs = self.hparams["glsd_u_kwargs"]
-        if self.hparams["glsd_as_regularizer"] == "no":
+        u_kwargs = self.hparams["glsd_u_kwargs"]
+        if self.hparams["glsd_classifier_loss"] == "glsd":
             """
             In classification we want min_theta max_lambda E[loss].
             For utility-view with u=-loss this gives: 
@@ -3471,8 +3471,9 @@ class GLSD(ERM):
                 lambda_ii = torch.tensor([lambda_i[int(e.item())] for e in envs], device=device) / sorted_eta.size()[0] # (nb,)
                 lambda_ref = torch.tensor([lambda_i[int(e.item())] for e in envs_ref], device=device) / sorted_eta.size()[0] # (nb,)
                 if self.SSD:
-                    l_ssd, l_fsd, _, _ = xsd_2nd_cdf(sorted_eta, ref["sorted_eta"], \
-                                   lambda_ii, lambda_ref, margin=margin, get_F1=True)
+                    l_ssd, _, _, _ = xsd_2nd_cdf(sorted_eta, ref["sorted_eta"], \
+                                   lambda_ii, lambda_ref, margin=margin, get_F1=False)
+                    l_fsd = torch.zeros_like(loss_ssd)
                 else:
                     l_fsd, _, _ = xsd_1st_cdf(sorted_eta, ref["sorted_eta"], \
                                    lambda_ii, lambda_ref)
@@ -3485,19 +3486,31 @@ class GLSD(ERM):
             data = {"sorted_eta": sorted_eta.detach(), "envs": envs.detach()} # assume we're no backproping the error to previous rounds
             self.buffer.append(data)
 
-            losses = {"fsd": loss_fsd, "ssd": loss_ssd, "nll": nll}
-            loss_signs = {"fsd": 1.0, "ssd": 1.0, "nll": -1.0, }   # this makes NLL adversarial
-            loss_names = ["fsd"]
-            penalty_names = ["ssd", "nll"]
+            if self.SSD:
+                losses_dict = {"ssd": loss_ssd, }
+                loss_signs = {"ssd": 1.0, }
+                loss_names = ["ssd"]
+            else:
+                losses_dict = {"fsd": loss_fsd, }
+                loss_signs = {"fsd": 1.0, }
+                loss_names = ["fsd"]
       
-        elif self.hparams["glsd_as_regularizer"] == "imagined_domains":  
+        elif self.hparams["glsd_classifier_loss"] == "nll": 
+                losses_dict = {"nll": losses, }
+                loss_signs = {"nll": 1.0, }
+                loss_names = ["nll"]
+                
+        else:
+            assert False, f'Unknown classifier loss {self.hparams["glsd_classifier_loss"]}'
+            
+        if self.hparams["glsd_regularizer"] == "imagined_domains":  
             # Here the domains are non-weighted yet
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b)
-            losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **kwargs)
+            losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **u_kwargs)
             lambdas = prepare_lambdas(self, losses, lambda_min, device, dominating=False, dominated=False)
 
-        elif self.hparams["glsd_as_regularizer"] == "imagined_domains&bestworst" or self.hparams["glsd_as_regularizer"] == "VREx":  
+        elif self.hparams["glsd_regularizer"] == "imagined_domains&bestworst" or self.hparams["glsd_regularizer"] == "VREx":  
             """
             Use Fk of the different domains as regularizer:
             1. Calculate Fk for all domains (including the imagined ones) for all etas and configurations.
@@ -3509,10 +3522,10 @@ class GLSD(ERM):
             # Here the domains are non-weighted yet
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b)
-            losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **kwargs)
+            losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **u_kwargs)
             lambdas = prepare_lambdas(self, losses, lambda_min, device, dominating=True, dominated=True)
                         
-        elif self.hparams["glsd_as_regularizer"] == "bestworst": 
+        elif self.hparams["glsd_regularizer"] == "bestworst": 
             """
             Use Fk of the best and worst affine combinations as regularizer:
             1a. Calculate best and worst affine combinations
@@ -3524,15 +3537,21 @@ class GLSD(ERM):
             # Here the domains are non-weighted yet
             b = losses.size()[1]
             lambda_ii = torch.ones_like(losses) / b # (n,b), requires_grad=False, device=losses.device()
-            losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **kwargs)
+            losses = u(-losses, lambda_ii, self.hparams["glsd_utype"], **u_kwargs)
             lambdas = prepare_lambdas(self, losses, lambda_min, device, dominating=True, dominated=True)
 
+        elif self.hparams["glsd_regularizer"] == "nll" or \
+             self.hparams["glsd_regularizer"] == "-nll":
+                losses_dict = dict(**losses_dict, nll=losses)
+                reg_sign = 1.0 if self.hparams["glsd_regularizer"]=="nll" else -1.0
+                loss_signs = dict(**loss_signs, nll=reg_sign)
+                penalty_names = ["nll"]
         else:
-            torch._assert(False, f'Unknown method {self.hparams["glsd_as_regularizer"]}')
+            assert False, f'Unknown regulaizer {self.hparams["glsd_regularizer"]}'
             
-        if self.hparams["glsd_as_regularizer"] == "imagined_domains" or \
-            self.hparams["glsd_as_regularizer"] == "bestworst" or \
-            self.hparams["glsd_as_regularizer"] == "imagined_domains&bestworst": 
+        if self.hparams["glsd_regularizer"] == "imagined_domains" or \
+            self.hparams["glsd_regularizer"] == "bestworst" or \
+            self.hparams["glsd_regularizer"] == "imagined_domains&bestworst": 
             
             K = lambdas.size()[1] # update number of lambdas
             b = losses.size()[1]
@@ -3566,14 +3585,13 @@ class GLSD(ERM):
             nnz_penalty = (penalty > 0).sum().detach()
             nnz_penalty = nnz_penalty if nnz_penalty > 0 else 1
             penalty = penalty.sum() / nnz_penalty
-
+            
             # Sign for each task
-            loss_signs = {"nll": 1.0, "penalty": 1.0, }
-            losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze(), }
-            loss_names = ["nll"]
+            loss_signs = dict(**loss_signs, penalty=1.0)
+            losses_dict = dict(**losses_dict, penalty=penalty.squeeze())
             penalty_names = ["penalty"]
         
-        elif self.hparams["glsd_as_regularizer"] == "VREx":
+        elif self.hparams["glsd_regularizer"] == "VREx":
             
             K = lambdas.size()[1] # update number of lambdas
             b = losses.size()[1]
@@ -3596,14 +3614,13 @@ class GLSD(ERM):
             penalty = loss_mean.var()
 
             # Sign for each task
-            loss_signs = {"nll": 1.0, "penalty": 1.0, }
-            losses = {"nll": nll.squeeze(), "penalty": penalty.squeeze(), }
-            loss_names = ["nll"]
+            loss_signs = dict(**loss_signs, penalty=1.0)
+            losses_dict = dict(**losses_dict, penalty=penalty.squeeze())
             penalty_names = ["penalty"]
 
         """ --------------------------------------------------------------
         Determine weights, run optimizer
-           Inputs: losses
+           Inputs: losses_dict
                     loss_signs
                     loss_names
                     penalty_names
@@ -3622,11 +3639,11 @@ class GLSD(ERM):
             return p
 
         if self.update_count > self.hparams["glsd_lossbalancer_warmup"]:
-            losses = self.loss_balancer.update(losses)
+            losses = self.loss_balancer.update(losses_dict)
             pweight = penalty_weight(self.update_count - self.hparams["glsd_lossbalancer_warmup"])
         elif self.update_count == self.hparams["glsd_lossbalancer_warmup"]:
             self.optimizer = self.init_optimizer()
-            losses = self.loss_balancer.update(losses)
+            losses = self.loss_balancer.update(losses_dict)
             pweight = penalty_weight(self.update_count - self.hparams["glsd_lossbalancer_warmup"])
         else:
             pweight = self.hparams['glsd_penalty_lambda_min']

@@ -189,7 +189,8 @@ def _hparams(algorithm, dataset, random_seed):
             
     elif algorithm == "GLSD_SSD" or algorithm == "GLSD_FSD":
         _hparam('glsd_affine_hull_gamma', 2, lambda r: r.choice([1,2,3]))
-        _hparam('glsd_as_regularizer', "no", lambda r: "no")
+        _hparam('glsd_regularizer', "nll", lambda r: "nll")
+        _hparam('glsd_classifier_loss', "glsd", lambda r: "glsd")
         _hparam('glsd_dominate_all_domains', False, lambda r: False)
         _hparam('glsd_gradnorm_alpha', 1.2, lambda r: r.uniform(0.1, 3))
         _hparam('glsd_gradnorm_smoothing', False, lambda r: False)
