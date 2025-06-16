@@ -3283,34 +3283,6 @@ class GLSD(ERM):
             
             return ret_val_F2, ret_val_F1, sorted_eta, sorted_is_y
 
-        # What are minibatches? Looks like they're minibatch per environment
-        penalty_weight = 1.0
-        nll = 0.
-        n = len(minibatches)
-
-        all_x = torch.cat([x for x, _ in minibatches])
-        all_logits = self.network(all_x) # all_logits depend on network
-        all_logits_idx = 0
-        device = self.device
-
-        # calculate per environment nll from logits calculated for inputs from all environments
-        losses = []
-        for x, y in minibatches:
-            logits = all_logits[all_logits_idx:all_logits_idx + x.shape[0]]
-            all_logits_idx += x.shape[0]
-            nll = F.cross_entropy(logits, y, reduction='none') # nll depends on network
-            losses.append(nll) # losses depend on network
-        losses = torch.stack(losses) # env x b, Concatenates a sequence of tensors along a new dimension.
-       
-        def soft_upper_clamp(nll, threshold, sharpness=10.0):  # slope ~1
-            s = torch.sigmoid(-sharpness * (nll - threshold))
-            return s * nll + (1 - s) * threshold
-            
-        nll = soft_upper_clamp(losses, self.hparams["glsd_nll_threshold_sample"])
-        nll = nll.sum(1).mean().unsqueeze(0) # sum over batch, mean over envs
-
-        lambda_min = -self.hparams['glsd_affine_hull_gamma'] / np.sqrt(n)
-
         def generate_samples_from_affine_hull(K, n, lambda_min, device):
             """Generates samples from semi-bounded affine hull
             Args:
@@ -3332,7 +3304,7 @@ class GLSD(ERM):
                 # Use gather to permute each column independently
                 Lambdas = torch.gather(Lambdas, 0, perms)
             else:
-                Lambdas = torch.empty(n,K,device=device,dtype=torch.float)
+                Lambdas = torch.empty(n,0,device=device,dtype=torch.float)
             return Lambdas
 
         def get_total_grad_norm(model):
@@ -3416,6 +3388,7 @@ class GLSD(ERM):
 
         def prepare_lambdas(self, losses, lambda_min, device, dominating=False, dominated=False):
             n = losses.size()[0]
+            assert (self.hparams["glsd_K"] > 0 or dominating or dominated), "No lambdas requested!"
             with torch.no_grad():
                 # (n,K'-1)
                 lambdas = imagine_domains(self.hparams["glsd_K"]-1, n, lambda_min, device, include_base_domains=self.hparams["glsd_dominate_all_domains"])
@@ -3425,8 +3398,6 @@ class GLSD(ERM):
                     lambda_worst =  make_extreme_lambda(self, pi_worst, worst=0, lambda_min=lambda_min).unsqueeze(1).to(device)
                     # (n,K')          (n,K'-1)           (n,1)   
                     lambdas = torch.cat([lambdas, lambda_worst], dim=1)
-                else:
-                    lambda_worst = torch.empty
                 if dominating:
                     pi_best, _, _  = extreme_affine_combination(losses, dominating=True,  order=int(self.SSD)+1) # sorted_eta depend on network (nb,)
                     # (n,)          (n,)
@@ -3435,6 +3406,34 @@ class GLSD(ERM):
             
             lambdas = lambdas.detach()
             return lambdas
+
+        def soft_upper_clamp(nll, threshold, sharpness=10.0):  # slope ~1
+            s = torch.sigmoid(-sharpness * (nll - threshold))
+            return s * nll + (1 - s) * threshold
+            
+        # What are minibatches? Looks like they're minibatch per environment
+        penalty_weight = 1.0
+        nll = 0.
+        n = len(minibatches)
+        lambda_min = -self.hparams['glsd_affine_hull_gamma'] / np.sqrt(n)
+
+        # Step 1: Get per-domain losses (nlls)
+        all_x = torch.cat([x for x, _ in minibatches])
+        all_logits = self.network(all_x) # all_logits depend on network
+        all_logits_idx = 0
+        device = self.device
+
+        # calculate per environment nll from logits calculated for inputs from all environments
+        losses = []
+        for x, y in minibatches:
+            logits = all_logits[all_logits_idx:all_logits_idx + x.shape[0]]
+            all_logits_idx += x.shape[0]
+            nll = F.cross_entropy(logits, y, reduction='none') # nll depends on network
+            losses.append(nll) # losses depend on network
+        losses = torch.stack(losses) # env x b, Concatenates a sequence of tensors along a new dimension.
+       
+        nll = soft_upper_clamp(losses, self.hparams["glsd_nll_threshold_sample"])
+        nll = nll.sum(1).mean().unsqueeze(0) # sum over batch, mean over envs
 
         kwargs = self.hparams["glsd_u_kwargs"]
         if self.hparams["glsd_as_regularizer"] == "no":
