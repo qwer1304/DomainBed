@@ -3494,7 +3494,6 @@ class GLSD(ERM):
         else:
             assert False, f'Unknown classifier loss {self.hparams["glsd_classifier_loss"]}'
             
-        print(losses)
         if self.hparams["glsd_regularizer"] == "imagined_domains":  
             # Here the domains are non-weighted yet
             b = losses.size()[1]
@@ -3612,7 +3611,7 @@ class GLSD(ERM):
 
         """ --------------------------------------------------------------
         Determine weights, run optimizer
-           Inputs: losses_dict
+           Inputs:  losses_dict
                     loss_signs
                     loss_names
                     penalty_names
@@ -3651,7 +3650,7 @@ class GLSD(ERM):
                 new_initial_weights = {k: v.item() for k,v in loss_weights.items() }
                 self.gradnorm_balancer.reset_weights(new_initial_weights)
 
-            loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses)  
+            loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses_dict)  
 
         # Combine weights
         signed_weighted_losses = {
