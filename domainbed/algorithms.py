@@ -3695,9 +3695,9 @@ class GLSD(ERM):
         self.update_count += 1
 
         # Step 6: Outputs
-        scalar_losses = {k: v.item() for k, v in losses_dict.items()}
-        scalar_loss_weights = {'w_'+k: v.item() for k, v in loss_weights.items()}
-        return {'loss': loss.item(), **scalar_losses, 'loss_gradnorm': loss_gradnorm.item(), **scalar_loss_weights, }      
+        scalar_losses = {k: float(v.item()) for k, v in losses_dict.items()}
+        scalar_loss_weights = {'w_'+k: float(v.item()) for k, v in loss_weights.items()}
+        return {'loss': float(loss.item()), **scalar_losses, 'loss_gradnorm': float(loss_gradnorm.item()), **scalar_loss_weights, }      
 
 class GLSD_SSD(GLSD):
     """GLSD_SSD algorithm """
