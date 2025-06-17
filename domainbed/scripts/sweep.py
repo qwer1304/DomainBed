@@ -35,7 +35,7 @@ class Job:
     def __init__(self, train_args, sweep_output_dir):
         train_args_for_hash = train_args
         if 'load_from_checkpoint' in train_args_for_hash:
-            del train_args_for_hash['load_from_checkpoint']
+            del train_args_for_hash['load_from_checkpoint'].deepcopy()
         args_str = json.dumps(train_args_for_hash, sort_keys=True)
         args_hash = hashlib.md5(args_str.encode('utf-8')).hexdigest()
         self.output_dir = os.path.join(sweep_output_dir, args_hash)
@@ -44,7 +44,6 @@ class Job:
         self.train_args['output_dir'] = self.output_dir
         command = ['python', '-m', 'domainbed.scripts.train']
         for k, v in sorted(self.train_args.items()):
-            print(k,v)
             if isinstance(v, list):
                 v = ' '.join([str(v_) for v_ in v])
                 command.append(f'--{k} {v}')
