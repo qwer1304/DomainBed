@@ -382,7 +382,7 @@ if __name__ == "__main__":
                 except TypeError as err:
                     print('error:', err, 'results:', results)
                     [print(k,v,type(v)) for k,v in results.items()]
-                    [print(k,v,type(v)) for k,v in results['hparams']]
+                    [print(k,v,type(v)) for k,v in results['hparams'].items()]
 
             algorithm_dict = algorithm.state_dict()
             start_step = step + 1
