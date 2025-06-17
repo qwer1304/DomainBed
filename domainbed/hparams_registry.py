@@ -199,7 +199,7 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('glsd_gradnorm_lambda', 0.1, lambda r: 0.1)
         _hparam('glsd_gradnorm_warmup', 400, lambda r: 400)
         _hparam('glsd_gradnorm_cls_tau', 1.0, lambda r: 1.0)  # classifier loss scaler
-        _hparam('glsd_gradnorm_penalty_tau', 1.0, lambda r: 1.0)  penalty loss scaler
+        _hparam('glsd_gradnorm_penalty_tau', 1.0, lambda r: 1.0)  # penalty loss scaler
         _hparam('glsd_K', 10, lambda r: 10)
         #_hparam('glsd_lambda_alpha_div', 2, lambda r: r.choice([1.5, 2, 3]))
         _hparam('glsd_lambda_alpha_div', 2, lambda r: 2)
