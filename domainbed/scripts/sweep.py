@@ -95,8 +95,20 @@ def all_test_env_combinations(n):
         for j in range(i+1, n):
             yield [i, j]
 
+def all_test_env_combinations_list(x):
+    """
+    For a list of envs in a dataset with n >= 3 envs, return all combinations of 1 and 2 test
+    envs.
+    """
+    n = len(x)
+    assert(n >= 3)
+    for i in range(n):
+        yield [x[i]]
+        for j in range(i+1, n):
+            yield [x[i], [j]]
+
 def make_args_list(n_trials, dataset_names, algorithms, n_hparams_from, n_hparams, steps,
-    data_dir, task, holdout_fraction, single_test_envs, hparams, 
+    data_dir, task, holdout_fraction, single_test_envs, specific_test_envs, hparams, 
     save_model_every_checkpoint, checkpoint_use_current_args, checkpoint_dont_reload_optimizer,
     load_from_checkpoint, checkpoint_freq
 ):
@@ -104,12 +116,20 @@ def make_args_list(n_trials, dataset_names, algorithms, n_hparams_from, n_hparam
     for trial_seed in range(n_trials):
         for dataset in dataset_names:
             for algorithm in algorithms:
-                if single_test_envs:
-                    all_test_envs = [
-                        [i] for i in range(datasets.num_environments(dataset))]
+                if specific_test_envs is None:
+                    if single_test_envs:
+                        all_test_envs = [
+                            [i] for i in range(datasets.num_environments(dataset))]
+                    else:
+                        all_test_envs = all_test_env_combinations(
+                            datasets.num_environments(dataset))
                 else:
-                    all_test_envs = all_test_env_combinations(
-                        datasets.num_environments(dataset))
+                    if single_test_envs:
+                        all_test_envs = [
+                            [i] for i in test_envs]
+                    else:
+                        all_test_envs = all_test_env_combinations_list(
+                            specific_test_envs)
                 for test_envs in all_test_envs:
                     for hparams_seed in range(n_hparams_from, n_hparams):
                         train_args = {}
@@ -165,6 +185,7 @@ if __name__ == "__main__":
     parser.add_argument('--hparams', type=str, default=None)
     parser.add_argument('--holdout_fraction', type=float, default=0.2)
     parser.add_argument('--single_test_envs', action='store_true')
+    parser.add_argument('--specific_test_envs', type=int, default=None)
     parser.add_argument('--skip_confirmation', action='store_true')
     parser.add_argument('--load_from_checkpoint', action='store_true',    
         help='Resume from checkpoint.')
@@ -188,6 +209,7 @@ if __name__ == "__main__":
         task=args.task,
         holdout_fraction=args.holdout_fraction,
         single_test_envs=args.single_test_envs,
+        specific_test_envs=args.specific_test_envs,
         hparams=args.hparams,
         save_model_every_checkpoint=args.save_model_every_checkpoint,
         checkpoint_use_current_args=args.checkpoint_use_current_args,
