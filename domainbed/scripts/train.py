@@ -381,7 +381,8 @@ if __name__ == "__main__":
                     f.write(json.dumps(results, sort_keys=True) + "\n")
                 except TypeError as err:
                     print('error:', err, 'results:', results)
-                    [print(k,v) for k,v in results.items()]
+                    [print(k,v,type(v)) for k,v in results.items()]
+                    [print(k,v,type(v)) for k,v in results['hparams']]
 
             algorithm_dict = algorithm.state_dict()
             start_step = step + 1
