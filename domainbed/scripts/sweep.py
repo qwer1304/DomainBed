@@ -126,7 +126,7 @@ def make_args_list(n_trials, dataset_names, algorithms, n_hparams_from, n_hparam
                 else:
                     if single_test_envs:
                         all_test_envs = [
-                            [i] for i in test_envs]
+                            [i] for i in specific_test_envs]
                     else:
                         all_test_envs = all_test_env_combinations_list(
                             specific_test_envs)
