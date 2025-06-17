@@ -45,8 +45,6 @@ class Job:
                 v = ' '.join([str(v_) for v_ in v])
             elif isinstance(v, str):
                 v = shlex.quote(v)
-            elif type(v) is bool:
-                v = ''
             command.append(f'--{k} {v}')
         self.command_str = ' '.join(command)
 
@@ -129,10 +127,14 @@ def make_args_list(n_trials, dataset_names, algorithms, n_hparams_from, n_hparam
                             train_args['steps'] = steps
                         if hparams is not None:
                             train_args['hparams'] = hparams
-                        train_args['save_model_every_checkpoint'] = save_model_every_checkpoint
-                        train_args['checkpoint_use_current_args'] = checkpoint_use_current_args
-                        train_args['checkpoint_dont_reload_optimizer'] = checkpoint_dont_reload_optimizer
-                        train_args['load_from_checkpoint'] = load_from_checkpoint
+                        if save_model_every_checkpoint:
+                            train_args['save_model_every_checkpoint'] = ''
+                        if checkpoint_use_current_args:
+                            train_args['checkpoint_use_current_args'] = ''
+                        if checkpoint_dont_reload_optimizer:
+                            train_args['checkpoint_dont_reload_optimizer'] = ''
+                        if load_from_checkpoint:
+                            train_args['load_from_checkpoint'] = ''
                         if checkpoint_freq is not None:
                             train_args['checkpoint_freq'] = checkpoint_freq                       
                         args_list.append(train_args)
