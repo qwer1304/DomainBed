@@ -228,7 +228,8 @@ if __name__ == "__main__":
     jobs = [Job(train_args, args.output_dir) for train_args in args_list]
 
     for job in jobs:
-        print(job, job.command_str)
+        print(job)
+        #print(job, job.command_str)
     print("{} jobs: {} done, {} incomplete, {} not launched.".format(
         len(jobs),
         len([j for j in jobs if j.state == Job.DONE]),
