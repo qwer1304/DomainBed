@@ -98,7 +98,7 @@ def all_test_env_combinations(n):
 def make_args_list(n_trials, dataset_names, algorithms, n_hparams_from, n_hparams, steps,
     data_dir, task, holdout_fraction, single_test_envs, hparams, 
     save_model_every_checkpoint, checkpoint_use_current_args, checkpoint_dont_reload_optimizer,
-    load_from_checkpoint
+    load_from_checkpoint, checkpoint_freq
 ):
     args_list = []
     for trial_seed in range(n_trials):
@@ -131,6 +131,8 @@ def make_args_list(n_trials, dataset_names, algorithms, n_hparams_from, n_hparam
                         train_args['checkpoint_use_current_args'] = checkpoint_use_current_args
                         train_args['checkpoint_dont_reload_optimizer'] = checkpoint_dont_reload_optimizer
                         train_args['load_from_checkpoint'] = load_from_checkpoint
+                        if checkpoint_freq is not None:
+                            train_args['checkpoint_freq'] = checkpoint_freq                       
                         args_list.append(train_args)
     return args_list
 
@@ -167,6 +169,8 @@ if __name__ == "__main__":
         help='Use args from this command line instead from those in the checkpoint.')
     parser.add_argument('--checkpoint_dont_reload_optimizer', action='store_true',    
         help='Dont reload optimzer state from checkpoint.')
+    parser.add_argument('--checkpoint_freq', type=int, default=None,
+        help='Checkpoint every N steps. Default is dataset-dependent.')
     args = parser.parse_args()
 
     args_list = make_args_list(
@@ -184,7 +188,8 @@ if __name__ == "__main__":
         save_model_every_checkpoint=args.save_model_every_checkpoint,
         checkpoint_use_current_args=args.checkpoint_use_current_args,
         checkpoint_dont_reload_optimizer=args.checkpoint_dont_reload_optimizer,
-        load_from_checkpoint=args.load_from_checkpoint
+        load_from_checkpoint=args.load_from_checkpoint,
+        checkpoint_freq=args.checkpoint_freq
     )
 
     jobs = [Job(train_args, args.output_dir) for train_args in args_list]
