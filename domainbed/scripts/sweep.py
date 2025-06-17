@@ -185,7 +185,7 @@ if __name__ == "__main__":
     parser.add_argument('--hparams', type=str, default=None)
     parser.add_argument('--holdout_fraction', type=float, default=0.2)
     parser.add_argument('--single_test_envs', action='store_true')
-    parser.add_argument('--specific_test_envs', type=int, default=None)
+    parser.add_argument('--specific_test_envs', nargs="+", default=None)
     parser.add_argument('--skip_confirmation', action='store_true')
     parser.add_argument('--load_from_checkpoint', action='store_true',    
         help='Resume from checkpoint.')
