@@ -218,7 +218,8 @@ if __name__ == "__main__":
         checkpoint_use_current_args=args.checkpoint_use_current_args,
         checkpoint_dont_reload_optimizer=args.checkpoint_dont_reload_optimizer,
         load_from_checkpoint=args.load_from_checkpoint,
-        checkpoint_freq=args.checkpoint_freq
+        checkpoint_freq=args.checkpoint_freq,
+        colwidth=args.colwidth
     )
 
     jobs = [Job(train_args, args.output_dir) for train_args in args_list]
