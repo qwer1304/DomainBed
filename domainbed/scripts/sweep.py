@@ -44,6 +44,7 @@ class Job:
         self.train_args['output_dir'] = self.output_dir
         command = ['python', '-m', 'domainbed.scripts.train']
         for k, v in sorted(self.train_args.items()):
+            print(k,v)
             if isinstance(v, list):
                 v = ' '.join([str(v_) for v_ in v])
                 command.append(f'--{k} {v}')
