@@ -4,9 +4,11 @@ python -m domainbed.scripts.sweep launch^
        --command_launcher local^
        --algorithms GLSD_SSD^
        --datasets ColoredMNIST^
-       --n_hparams 1^
+       --n_hparams 3^
        --single_test_envs^
+       --specific_test_envs 4^
        --n_trials 1^
        --skip_confirmation^
-       --hparams '{hparams_str}'^
-       --checkpoint_freq 100
+       --checkpoint_freq 100^
+       --save_model_every_checkpoint^
+       --colwidth 10

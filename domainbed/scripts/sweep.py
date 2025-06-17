@@ -43,12 +43,16 @@ class Job:
         for k, v in sorted(self.train_args.items()):
             if isinstance(v, list):
                 v = ' '.join([str(v_) for v_ in v])
+                command.append(f'--{k} {v}')
             elif isinstance(v, str):
                 if v == '':
                     command.append(f'--{k}')
                 else:
                     v = shlex.quote(v)
                     command.append(f'--{k} {v}')
+            else:
+                # handle int, float, bool, etc.
+                command.append(f'--{k} {v}')
         self.command_str = ' '.join(command)
 
         if os.path.exists(os.path.join(self.output_dir, 'done')):
@@ -189,7 +193,7 @@ if __name__ == "__main__":
     parser.add_argument('--hparams', type=str, default=None)
     parser.add_argument('--holdout_fraction', type=float, default=0.2)
     parser.add_argument('--single_test_envs', action='store_true')
-    parser.add_argument('--specific_test_envs', nargs="+", default=None)
+    parser.add_argument('--specific_test_envs', type=int, nargs='+', default=None)
     parser.add_argument('--skip_confirmation', action='store_true')
     parser.add_argument('--load_from_checkpoint', action='store_true',    
         help='Resume from checkpoint.')
@@ -229,7 +233,8 @@ if __name__ == "__main__":
 
     for job in jobs:
         print(job)
-        #print(job, job.command_str)
+        #print(job.command_str)
+    exit()
     print("{} jobs: {} done, {} incomplete, {} not launched.".format(
         len(jobs),
         len([j for j in jobs if j.state == Job.DONE]),
