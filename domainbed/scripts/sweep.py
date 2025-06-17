@@ -96,7 +96,10 @@ def all_test_env_combinations(n):
             yield [i, j]
 
 def make_args_list(n_trials, dataset_names, algorithms, n_hparams_from, n_hparams, steps,
-    data_dir, task, holdout_fraction, single_test_envs, hparams):
+    data_dir, task, holdout_fraction, single_test_envs, hparams, 
+    save_model_every_checkpoint, checkpoint_use_current_args, checkpoint_dont_reload_optimizer,
+    load_from_checkpoint
+):
     args_list = []
     for trial_seed in range(n_trials):
         for dataset in dataset_names:
@@ -124,6 +127,10 @@ def make_args_list(n_trials, dataset_names, algorithms, n_hparams_from, n_hparam
                             train_args['steps'] = steps
                         if hparams is not None:
                             train_args['hparams'] = hparams
+                        train_args['save_model_every_checkpoint'] = save_model_every_checkpoint
+                        train_args['checkpoint_use_current_args'] = checkpoint_use_current_args
+                        train_args['checkpoint_dont_reload_optimizer'] = checkpoint_dont_reload_optimizer
+                        train_args['load_from_checkpoint'] = load_from_checkpoint
                         args_list.append(train_args)
     return args_list
 
@@ -134,7 +141,7 @@ def ask_for_confirmation():
         exit(0)
 
 DATASETS = [d for d in datasets.DATASETS if "Debug" not in d]
-
+# Jobs are launched with output_dir=output_dir+hash
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run a sweep')
     parser.add_argument('command', choices=['launch', 'delete_incomplete'])
@@ -153,6 +160,13 @@ if __name__ == "__main__":
     parser.add_argument('--holdout_fraction', type=float, default=0.2)
     parser.add_argument('--single_test_envs', action='store_true')
     parser.add_argument('--skip_confirmation', action='store_true')
+    parser.add_argument('--load_from_checkpoint', action='store_true',    
+        help='Resume from checkpoint.')
+    parser.add_argument('--save_model_every_checkpoint', action='store_true')
+    parser.add_argument('--checkpoint_use_current_args', action='store_true',    
+        help='Use args from this command line instead from those in the checkpoint.')
+    parser.add_argument('--checkpoint_dont_reload_optimizer', action='store_true',    
+        help='Dont reload optimzer state from checkpoint.')
     args = parser.parse_args()
 
     args_list = make_args_list(
@@ -166,7 +180,11 @@ if __name__ == "__main__":
         task=args.task,
         holdout_fraction=args.holdout_fraction,
         single_test_envs=args.single_test_envs,
-        hparams=args.hparams
+        hparams=args.hparams,
+        save_model_every_checkpoint=args.save_model_every_checkpoint,
+        checkpoint_use_current_args=args.checkpoint_use_current_args,
+        checkpoint_dont_reload_optimizer=args.checkpoint_dont_reload_optimizer,
+        load_from_checkpoint=args.load_from_checkpoint
     )
 
     jobs = [Job(train_args, args.output_dir) for train_args in args_list]
@@ -181,7 +199,9 @@ if __name__ == "__main__":
     )
 
     if args.command == 'launch':
-        to_launch = [j for j in jobs if j.state != Job.DONE]
+        to_launch = [j for j in jobs if j.state == Job.NOT_LAUNCHED]
+        if args.load_from_checkpoint:
+            to_launch = to_launch + [j for j in jobs if j.state == Job.INCOMPLETE]
         print(f'About to launch {len(to_launch)} jobs.')
         if not args.skip_confirmation:
             ask_for_confirmation()
