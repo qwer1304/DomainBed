@@ -234,7 +234,6 @@ if __name__ == "__main__":
     for job in jobs:
         print(job)
         #print(job.command_str)
-    exit()
     print("{} jobs: {} done, {} incomplete, {} not launched.".format(
         len(jobs),
         len([j for j in jobs if j.state == Job.DONE]),
