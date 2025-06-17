@@ -34,7 +34,7 @@ if __name__ == "__main__":
         else:
             cuda_rng_state = None
 
-        checkpoint_file = os.path.join(args.output_dir, filename)
+        checkpoint_file = os.path.join(args.output_dir, 'checkpoints/', filename)
         save_dict = {
             "args": vars(args),
             "model_input_shape": dataset.input_shape,
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     parser.add_argument('--checkpoint_save_final_file', type=str, default="model.pkl",   
         help='Filename of the final save checkpoint. If not given model.pkl is used. Saved in output dir.')
     parser.add_argument('--checkpoint_load_file', type=str, default=None,   
-        help='Filename (including path) of the load checkpoint. If not provided, latest model_step*.pkl file in output dir is used.')
+        help='Filename (including path) of the load checkpoint. If not provided, latest model_step*.pkl file in output/checkpoints dir is used.')
     parser.add_argument('--checkpoint_use_current_args', action='store_true',    
         help='Use args from this command line instead from those in the checkpoint.')
     parser.add_argument('--checkpoint_dont_reload_optimizer', action='store_true',    
@@ -137,7 +137,7 @@ if __name__ == "__main__":
             return latest
 
         if args.checkpoint_load_file is None:
-            filename = os.path.join(args.output_dir, 'model_step*.pkl')
+            filename = os.path.join(args.output_dir, 'checkpoints', 'model_step*.pkl')
         else:
             filename = args.checkpoint_load_file # filename + path provided
         filename = latest_file(filename)
@@ -161,6 +161,7 @@ if __name__ == "__main__":
         from_checkpoint = False
 
     os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(os.path.join(args.output_dir, 'checkpoints/'), exist_ok=True)
     sys.stdout = misc.Tee(os.path.join(args.output_dir, 'out.txt'))
     sys.stderr = misc.Tee(os.path.join(args.output_dir, 'err.txt'))
 
