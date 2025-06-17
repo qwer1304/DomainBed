@@ -188,7 +188,7 @@ def _hparams(algorithm, dataset, random_seed):
             _hparam('urm_discriminator_lr', 5e-5, lambda r: 10**r.uniform(-6, -4.5))
             
     elif algorithm == "GLSD_SSD" or algorithm == "GLSD_FSD":
-        #_hparam('glsd_affine_hull_gamma', 2, lambda r: r.choice([1,2,3]))
+        #_hparam('glsd_affine_hull_gamma', 2, lambda r: int(r.choice([1,2,3])))
         _hparam('glsd_affine_hull_gamma', 8, lambda r: 8)
         _hparam('glsd_regularizer', "VREx", lambda r: "VREx")
         _hparam('glsd_classifier_loss', "glsd", lambda r: "glsd")
@@ -201,7 +201,7 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('glsd_gradnorm_cls_tau', 1.0, lambda r: 1.0)  # classifier loss scaler
         _hparam('glsd_gradnorm_penalty_tau', 1.0, lambda r: 1.0)  # penalty loss scaler
         _hparam('glsd_K', 10, lambda r: 10)
-        #_hparam('glsd_lambda_alpha_div', 2, lambda r: r.choice([1.5, 2, 3]))
+        #_hparam('glsd_lambda_alpha_div', 2, lambda r: int(r.choice([1.5, 2, 3])))
         _hparam('glsd_lambda_alpha_div', 2, lambda r: 2)
         _hparam('glsd_lossbalancer_alpha', 0.99, lambda r: 0.99)
         _hparam('glsd_lossbalancer_warmup', 100, lambda r: 100)
@@ -215,7 +215,7 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('glsd_penalty_lambda_min', 0.1, lambda r: 0.1)
         _hparam('glsd_penalty_tau', 100, lambda r: 100) # # penalty scaler
         _hparam('glsd_penalty_power', 1.0, lambda r: 1.0)
-        _hparam('glsd_update_worst_env_every_steps', 10, lambda r: 10) #r.choice([1,4,8,10]))
+        _hparam('glsd_update_worst_env_every_steps', 10, lambda r: 10) #int(r.choice([1,4,8,10])))
         _hparam('glsd_utype', -1, lambda r: -1)
         _hparam('glsd_u_kwargs', {}, lambda r: {})
 
