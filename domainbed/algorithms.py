@@ -3400,9 +3400,13 @@ class GLSD(ERM):
             return lambdas
 
         def soft_upper_clamp(nll, threshold, sharpness=10.0):  # slope ~1
+            """ For nll <= thresohld ~= nll
+                For nll > threshold ~= threshold
+            """
             s = torch.sigmoid(-sharpness * (nll - threshold))
             return s * nll + (1 - s) * threshold
             
+        # Step 0: Initialization
         # What are minibatches? Looks like they're minibatch per environment
         penalty_weight = 1.0
         nll = 0.
@@ -3422,13 +3426,17 @@ class GLSD(ERM):
             all_logits_idx += x.shape[0]
             nll = F.cross_entropy(logits, y, reduction='none') # nll depends on network
             losses.append(nll) # losses depend on network
-        losses = torch.stack(losses) # env x b, Concatenates a sequence of tensors along a new dimension.
+        losses = torch.stack(losses) # (n,b), Concatenates a sequence of tensors along a new dimension.
        
+        """ NU
         nll = soft_upper_clamp(losses, self.hparams["glsd_nll_threshold_sample"])
         nll = nll.sum(1).mean().unsqueeze(0) # sum over batch, mean over envs
-
+        """
+        
+        # Step 2: Classifier loss
         u_kwargs = self.hparams["glsd_u_kwargs"]
         if self.hparams["glsd_classifier_loss"] == "glsd":
+            # Step 2a: Dream affine configurations
             """
             In classification we want min_theta max_lambda E[loss].
             For utility-view with u=-loss this gives: 
@@ -3438,6 +3446,7 @@ class GLSD(ERM):
             lambdas = prepare_lambdas(self, -losses, lambda_min, device, dominating=True, dominated=False)
             K = lambdas.size()[1]
             
+            # Step 2b: Calculate loss
             (sorted_eta, envs, _), _, _ = calculate_Fks(-losses)
 
             if len(self.buffer) == 0:
@@ -3486,13 +3495,16 @@ class GLSD(ERM):
                 losses_dict = {"loss_cls": loss_fsd, }
       
         elif self.hparams["glsd_classifier_loss"] == "nll": 
-                losses_dict = {"loss_cls": losses.sum(1).mean(), } # sum over batch, mean over envs
-                loss_signs = {"loss_cls": 1.0, }
-                loss_names = ["loss_cls"]
+            # Step 2b: Calculate loss
+            losses_dict = {"loss_cls": losses.sum(1).mean(), } # sum over batch, mean over envs
+            loss_signs = {"loss_cls": 1.0, }
+            loss_names = ["loss_cls"]
                 
         else:
             assert False, f'Unknown classifier loss {self.hparams["glsd_classifier_loss"]}'
             
+        # Step 3: Penalty
+        # Step 3a: Dream affine configurations
         if self.hparams["glsd_regularizer"] == "imagined_domains":  
             # Here the domains are non-weighted yet
             b = losses.size()[1]
@@ -3546,6 +3558,7 @@ class GLSD(ERM):
         else:
             assert False, f'Unknown regulaizer {self.hparams["glsd_regularizer"]}'
             
+        # Step 3b: Calculate penalties
         if self.hparams["glsd_regularizer"] == "imagined_domains" or \
             self.hparams["glsd_regularizer"] == "bestworst" or \
             self.hparams["glsd_regularizer"] == "imagined_domains&bestworst": 
@@ -3615,6 +3628,7 @@ class GLSD(ERM):
             losses_dict = dict(**losses_dict, penalty=penalty.squeeze())
             penalty_names = ["penalty"]
 
+        # Step 4: Weights, loss balancing, GradNorm + Warm-up
         """ --------------------------------------------------------------
         Determine weights, run optimizer
            Inputs:  losses_dict
@@ -3635,21 +3649,19 @@ class GLSD(ERM):
             #print(t.item(), s_power, s_exp, s_1m, p)
             return p
 
-        if self.update_count > self.hparams["glsd_lossbalancer_warmup"]:
-            losses_dict = self.loss_balancer.update(losses_dict)
-            pweight = penalty_weight(self.update_count - self.hparams["glsd_lossbalancer_warmup"])
-        elif self.update_count == self.hparams["glsd_lossbalancer_warmup"]:
-            self.optimizer = self.init_optimizer()
-            losses_dict = self.loss_balancer.update(losses_dict)
-            pweight = penalty_weight(self.update_count - self.hparams["glsd_lossbalancer_warmup"])
+        if self.update_count >= self.hparams["glsd_penalty_warmup"]:
+            pweight = penalty_weight(self.update_count - self.hparams["glsd_penalty_warmup"])
         else:
             pweight = self.hparams['glsd_penalty_lambda_min']
 
         loss_weights = {k: torch.tensor([1.0], device=device) for k in loss_names}
         penalty_weights = {k: torch.tensor([pweight], device=device) for k in penalty_names}
         loss_weights = dict(**loss_weights, **penalty_weights)
-        loss_gradnorm = torch.tensor([0], device=device)
-        grads = torch.zeros(len(loss_weights), device=device)
+
+        if self.hparams["glsd_lossbalancer_warmup"] is not None and self.update_count >= self.hparams["glsd_lossbalancer_warmup"]:
+            losses_dict = self.loss_balancer.update(losses_dict)
+            if self.update_count == self.hparams["glsd_lossbalancer_warmup"]:
+                self.optimizer = self.init_optimizer()
 
         if self.hparams["glsd_gradnorm_warmup"] is not None and self.update_count >= self.hparams["glsd_gradnorm_warmup"]:
             if self.update_count == self.hparams["glsd_gradnorm_warmup"]:
@@ -3657,6 +3669,9 @@ class GLSD(ERM):
                 self.gradnorm_balancer.reset_weights(new_initial_weights)
 
             loss_weights, loss_gradnorm, grads = self.gradnorm_balancer.compute_weights_and_loss(losses_dict)  
+        else:
+            loss_gradnorm = torch.tensor([0], device=device)
+            grads = torch.zeros(len(loss_weights), device=device)
 
         # Combine weights
         signed_weighted_losses = {
@@ -3666,6 +3681,7 @@ class GLSD(ERM):
         sloss = sum(signed_weighted_losses.values())
         loss = sloss + self.hparams["glsd_gradnorm_lambda"] * loss_gradnorm
 
+        # Step 5: Optimizer
         # Do the real backward pass on the total loss
         self.optimizer.zero_grad()
         loss.backward(retain_graph=True)
@@ -3678,6 +3694,7 @@ class GLSD(ERM):
 
         self.update_count += 1
 
+        # Step 6: Outputs
         scalar_losses = {k: v.item() for k, v in losses_dict.items()}
         scalar_loss_weights = {'w_'+k: v.item() for k, v in loss_weights.items()}
         return {'loss': loss.item(), **scalar_losses, 'loss_gradnorm': loss_gradnorm.item(), **scalar_loss_weights, }      
