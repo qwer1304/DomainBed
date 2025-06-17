@@ -33,7 +33,10 @@ class Job:
     DONE = 'Done'
 
     def __init__(self, train_args, sweep_output_dir):
-        args_str = json.dumps(train_args, sort_keys=True)
+        train_args_for_hash = train_args
+        if 'load_from_checkpoint' in train_args_for_hash:
+            del train_args_for_hash['load_from_checkpoint']
+        args_str = json.dumps(train_args_for_hash, sort_keys=True)
         args_hash = hashlib.md5(args_str.encode('utf-8')).hexdigest()
         self.output_dir = os.path.join(sweep_output_dir, args_hash)
 
