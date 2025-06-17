@@ -110,7 +110,7 @@ def all_test_env_combinations_list(x):
 def make_args_list(n_trials, dataset_names, algorithms, n_hparams_from, n_hparams, steps,
     data_dir, task, holdout_fraction, single_test_envs, specific_test_envs, hparams, 
     save_model_every_checkpoint, checkpoint_use_current_args, checkpoint_dont_reload_optimizer,
-    load_from_checkpoint, checkpoint_freq
+    load_from_checkpoint, checkpoint_freq, colwidth
 ):
     args_list = []
     for trial_seed in range(n_trials):
@@ -156,7 +156,8 @@ def make_args_list(n_trials, dataset_names, algorithms, n_hparams_from, n_hparam
                         if load_from_checkpoint:
                             train_args['load_from_checkpoint'] = ''
                         if checkpoint_freq is not None:
-                            train_args['checkpoint_freq'] = checkpoint_freq                       
+                            train_args['checkpoint_freq'] = checkpoint_freq   
+                        train_args['colwidth'] = colwidth
                         args_list.append(train_args)
     return args_list
 
@@ -196,6 +197,8 @@ if __name__ == "__main__":
         help='Dont reload optimzer state from checkpoint.')
     parser.add_argument('--checkpoint_freq', type=int, default=None,
         help='Checkpoint every N steps. Default is dataset-dependent.')
+    parser.add_argument('--colwidth', type=int, default=12,    
+        help='Column width of the print row.')
     args = parser.parse_args()
 
     args_list = make_args_list(
