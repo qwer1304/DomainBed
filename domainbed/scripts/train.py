@@ -10,7 +10,7 @@ import time
 import uuid
 import glob
 import copy
-
+import warnings
 
 import numpy as np
 import PIL
@@ -128,6 +128,7 @@ if __name__ == "__main__":
 
     # If we ever want to implement checkpointing, just persist these values
     # every once in a while, and then load them from disk here.
+    from_checkpoint = False
     if args.load_from_checkpoint:
         def latest_file(pattern):
             files = glob.glob(pattern)
@@ -146,14 +147,13 @@ if __name__ == "__main__":
                 _, hparams, algorithm_dict, start_step, otimizer_dict, rng_dict = load_checkpoint(filename)
             else:
                args, hparams, algorithm_dict, start_step, otimizer_dict, rng_dict = load_checkpoint(filename)
+            print("Loading from", filename)           
+            from_checkpoint = True
         else:
-            raise ValueError("No checkpoint file.")
-        print("Loading from", filename)
-            
-        from_checkpoint = True
-    else:
+            warnings.warn(f"Warning: Loading from checkpoint, but no file {filename} exists! Defaulting to initial clean state.")
+    if not from_checkpoint:
         if (args.checkpoint_load_file is not None) or (args.checkpoint_use_current_args):
-            raise ValueError("Checkpoint load related options given, but loading from checkpoint not requested.")
+            warnings.warn("Checkpoint load related options given, but loading from checkpoint not requested.")
         start_step = 0
         algorithm_dict = None
         optimizer_dict = None
