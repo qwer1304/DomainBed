@@ -189,7 +189,7 @@ def _hparams(algorithm, dataset, random_seed):
             
     elif algorithm == "GLSD_SSD" or algorithm == "GLSD_FSD":
         #_hparam('glsd_affine_hull_gamma', 2, lambda r: r.choice([1,2,3]))
-        _hparam('glsd_affine_hull_gamma', 8, lambda r: 8))
+        _hparam('glsd_affine_hull_gamma', 8, lambda r: 8)
         _hparam('glsd_regularizer', "VREx", lambda r: "VREx")
         _hparam('glsd_classifier_loss', "glsd", lambda r: "glsd")
         _hparam('glsd_dominate_all_domains', False, lambda r: False)
@@ -202,11 +202,11 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('glsd_gradnorm_penalty_tau', 1.0, lambda r: 1.0)  penalty loss scaler
         _hparam('glsd_K', 10, lambda r: 10)
         #_hparam('glsd_lambda_alpha_div', 2, lambda r: r.choice([1.5, 2, 3]))
-        _hparam('glsd_lambda_alpha_div', 2, lambda r: 2))
+        _hparam('glsd_lambda_alpha_div', 2, lambda r: 2)
         _hparam('glsd_lossbalancer_alpha', 0.99, lambda r: 0.99)
         _hparam('glsd_lossbalancer_warmup', 100, lambda r: 100)
         #_hparam('glsd_nll_threshold_sample', 3, lambda r: r.uniform(0.1, 4))
-        _hparam('glsd_nll_threshold_sample', 3, lambda r: 3))
+        _hparam('glsd_nll_threshold_sample', 3, lambda r: 3)
         #_hparam('glsd_nll_threshold_global', 70, lambda r: r.uniform(60, 90))
         _hparam('glsd_nll_threshold_global', 70, lambda r: 70)
         _hparam('glsd_optimizer', "adamw", lambda r: "adamw")
