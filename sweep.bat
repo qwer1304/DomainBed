@@ -1,9 +1,12 @@
 python -m domainbed.scripts.sweep launch^
        --data_dir=./domainbed/data/MNIST/^
-       --output_dir=./domainbed/output/^
+       --output_dir=./domainbed/sweep/^
        --command_launcher local^
-       --algorithms GLSD^
+       --algorithms GLSD_SSD^
        --datasets ColoredMNIST^
-       --n_hparams 3^
+       --n_hparams 1^
        --single_test_envs^
-       --n_trials 1
+       --n_trials 1^
+       --skip_confirmation^
+       --hparams '{hparams_str}'^
+       --checkpoint_freq 100

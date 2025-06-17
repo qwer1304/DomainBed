@@ -45,6 +45,8 @@ class Job:
                 v = ' '.join([str(v_) for v_ in v])
             elif isinstance(v, str):
                 v = shlex.quote(v)
+            elif type(v) is bool:
+                v = ''
             command.append(f'--{k} {v}')
         self.command_str = ' '.join(command)
 
