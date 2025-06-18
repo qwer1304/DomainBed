@@ -209,15 +209,19 @@ if __name__ == "__main__":
     if args.hparams and ((not from_checkpoint) or args.checkpoint_use_current_args):
         hparams.update(json.loads(args.hparams))
 
-    print('HParams:')
-    for k, v in sorted(hparams.items()):
-        print('\t{}: {}'.format(k, v))
-
     if args.dataset in vars(datasets):
         dataset = vars(datasets)[args.dataset](args.data_dir,
             args.test_envs, hparams)
     else:
         raise NotImplementedError
+
+    # Must come before algorithm initialization
+    n_steps = args.steps or dataset.N_STEPS
+    hparams["n_steps"] = n_steps
+
+    print('HParams:')
+    for k, v in sorted(hparams.items()):
+        print('\t{}: {}'.format(k, v))
 
     # Split each env into an 'in-split' and an 'out-split'. We'll train on
     # each in-split except the test envs, and evaluate on all splits.
@@ -288,10 +292,6 @@ if __name__ == "__main__":
         for i in range(len(out_splits))]
     eval_loader_names += ['env{}_uda'.format(i)
         for i in range(len(uda_splits))]
-
-    # Must come before algorithm initialization
-    n_steps = args.steps or dataset.N_STEPS
-    hparams["n_steps"] = n_steps
 
     algorithm_class = algorithms.get_algorithm_class(args.algorithm)
     algorithm = algorithm_class(dataset.input_shape, dataset.num_classes, len(dataset) - len(args.test_envs), hparams)

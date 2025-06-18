@@ -3315,13 +3315,13 @@ class GLSD(ERM):
                 lambda: (n,) affine combination
             """
             n = len(pi)
-            update_worst_env_every_steps = self.hparams['glsd_update_worst_env_every_steps']
-            ministep = self.update_count.item() % update_worst_env_every_steps
+            pos_affine_coeff_prob_steps = self.hparams['glsd_pos_affine_coeff_prob_steps']
+            ministep = self.update_count.item() % pos_affine_coeff_prob_steps
             if ministep == 0:
                 self.pi_prev[worst] = self.pi[worst]
                 self.pi[worst] = pi                  
 
-            alpha_max = update_worst_env_every_steps / self.hparams['glsd_lambda_alpha_div']
+            alpha_max = pos_affine_coeff_prob_steps / self.hparams['glsd_pos_affine_coeff_prob_update_rate']
             alpha = min(ministep/alpha_max,1)
             pi = alpha*self.pi[worst] + (1-alpha)*self.pi_prev[worst]
 

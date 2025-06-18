@@ -111,11 +111,16 @@ def all_test_env_combinations_list(x):
     envs.
     """
     n = len(x)
-    assert(n >= 3)
-    for i in range(n):
-        yield [x[i]]
-        for j in range(i+1, n):
-            yield [x[i], [j]]
+    assert(n >= 2)
+    if n >= 3:
+        for i in range(n):
+            yield [x[i]]
+            for j in range(i+1, n):
+                yield [x[i], x[j]]
+    elif n == 2
+        for i in range(n):
+            yield [x[i]]
+            yield [x[0], x[1]]        
 
 def make_args_list(n_trials, dataset_names, algorithms, n_hparams_from, n_hparams, steps,
     data_dir, task, holdout_fraction, single_test_envs, specific_test_envs, hparams, 

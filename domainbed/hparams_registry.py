@@ -201,8 +201,6 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('glsd_gradnorm_cls_tau', 1.0, lambda r: 1.0)  # classifier loss scaler
         _hparam('glsd_gradnorm_penalty_tau', 1.0, lambda r: 1.0)  # penalty loss scaler
         _hparam('glsd_K', 10, lambda r: 10)
-        #_hparam('glsd_lambda_alpha_div', 2, lambda r: int(r.choice([1.5, 2, 3])))
-        _hparam('glsd_lambda_alpha_div', 2, lambda r: 2)
         _hparam('glsd_lossbalancer_alpha', 0.99, lambda r: 0.99)
         _hparam('glsd_lossbalancer_warmup', 100, lambda r: 100)
         #_hparam('glsd_nll_threshold_sample', 3, lambda r: r.uniform(0.1, 4))
@@ -215,7 +213,9 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('glsd_penalty_lambda_min', 0.1, lambda r: 0.1)
         _hparam('glsd_penalty_tau', 100, lambda r: 100) # # penalty scaler
         _hparam('glsd_penalty_power', 1.0, lambda r: 1.0)
-        _hparam('glsd_update_worst_env_every_steps', 10, lambda r: 10) #int(r.choice([1,4,8,10])))
+        #_hparam('glsd_pos_affine_coeff_prob_update_rate', 2, lambda r: int(r.choice([1.5, 2, 3])))
+        _hparam('glsd_pos_affine_coeff_prob_update_rate', 2, lambda r: 2)
+        _hparam('glsd_pos_affine_coeff_prob_steps', 10, lambda r: 10) #int(r.choice([1,4,8,10])))
         _hparam('glsd_utype', -1, lambda r: -1)
         _hparam('glsd_u_kwargs', {}, lambda r: {})
 
