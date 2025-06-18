@@ -107,6 +107,7 @@ def print_table(table, header_text, row_labels, col_labels, colwidth=10,
 def print_results_tables(records, selection_method, latex):
     """Given all records, print a results table for each dataset."""
     grouped_records = reporting.get_grouped_records(records)
+    print(grouped_records)
 
     if selection_method == model_selection.IIDAutoLRAccuracySelectionMethod:
         for r in grouped_records:
@@ -143,7 +144,6 @@ def print_results_tables(records, selection_method, latex):
                     ).select("sweep_acc"))
                 mean, err, table[i][j] = format_mean(trial_accs, latex)
                 means.append(mean)
-                print(grouped_records)
             if None in means:
                 table[i][-1] = "X"
             else:
