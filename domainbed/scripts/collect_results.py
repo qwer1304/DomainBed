@@ -143,7 +143,7 @@ def print_results_tables(records, selection_method, latex):
                     ).select("sweep_acc"))
                 mean, err, table[i][j] = format_mean(trial_accs, latex)
                 means.append(mean)
-                print(test_env, trial_accs)
+                print(grouped_records)
             if None in means:
                 table[i][-1] = "X"
             else:
