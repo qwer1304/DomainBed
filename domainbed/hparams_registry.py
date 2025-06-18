@@ -254,7 +254,7 @@ def _hparams(algorithm, dataset, random_seed):
 
     if dataset in SMALL_IMAGES:
         if algorithm == "GLSD_SSD" or algorithm == GLSD_FSD:
-            _hparam('batch_size', 64, lambda r: int(2**r.uniform(5, 8)))
+            _hparam('batch_size', 64, lambda r: int(2**r.uniform(5, 7)))
         else:
             _hparam('batch_size', 64, lambda r: int(2**r.uniform(3, 9)))
     elif algorithm == 'ARM':
