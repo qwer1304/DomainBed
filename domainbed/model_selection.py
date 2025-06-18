@@ -46,7 +46,9 @@ class SelectionMethod:
         return the mean test acc of the k runs with the top val accs.
         """
         _hparams_accs = self.hparams_accs(records)
+        print(len(_hparams_accs), _hparams_accs)
         if len(_hparams_accs):
+            print(_hparams_accs[0][0]['test_acc'])
             return _hparams_accs[0][0]['test_acc']
         else:
             return None
