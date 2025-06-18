@@ -117,7 +117,7 @@ def all_test_env_combinations_list(x):
             yield [x[i]]
             for j in range(i+1, n):
                 yield [x[i], x[j]]
-    elif n == 2
+    elif n == 2:
         for i in range(n):
             yield [x[i]]
             yield [x[0], x[1]]        
