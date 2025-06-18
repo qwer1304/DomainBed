@@ -107,7 +107,6 @@ def print_table(table, header_text, row_labels, col_labels, colwidth=10,
 def print_results_tables(records, selection_method, latex):
     """Given all records, print a results table for each dataset."""
     grouped_records = reporting.get_grouped_records(records)
-    print(grouped_records)
 
     if selection_method == model_selection.IIDAutoLRAccuracySelectionMethod:
         for r in grouped_records:
