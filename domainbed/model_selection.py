@@ -202,9 +202,14 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
     def run_acc(self, test_env, records):
         # records are all run records (i.e., for a single dataset, algorithm, test_env, hash_seed)
         # group() returns a list of (group, group_records)
-        step_accs = records.group('step').map(lambda step, step_records:
+        """step_accs = records.group('step').map(lambda step, step_records:
             {**self._step_acc(test_env, step_records), "step": step}
-        ).filter_not_none()
+        ).filter_not_none()"""
+        step_accs = records.group('step').map(lambda step, step_records:
+            (self._step_acc(test_env, step_records), step)
+        )
+        step_accs = step.accs.filter(lambda r: r[0] is not None)
+        step_accs = step_accs.map(lambda r: **r[0], "step": r[1])
         # step_acc() returns a dictionary with val_acc and test_acc keys
         # step_accs is a query (list) of run step_acc() results grouped according to step
         if len(step_accs):
