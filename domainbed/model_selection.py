@@ -154,7 +154,7 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
         else:
             test_records = records.filter(lambda r: len(r['args']['test_envs']) == 2)
             if len(test_records) != 1:
-                print(1,test_env)
+                print(1,test_env,test_records)
                 return None
 
         # Assumes test record is the FIRST one in the pair of envs in a record.
@@ -204,9 +204,6 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
     def run_acc(self, test_env, records):
         # records are all run records (i.e., for a single dataset, algorithm, test_env, hash_seed)
         # group() returns a list of (group, group_records)
-        xxx = records.group('step').map(lambda step, step_records:
-            self._step_acc(test_env, step_records))
-        print(xxx)
         step_accs = records.group('step').map(lambda step, step_records:
             {**self._step_acc(test_env, step_records), "step": step}
         ).filter_not_none()
