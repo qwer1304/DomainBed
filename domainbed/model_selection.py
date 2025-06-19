@@ -154,6 +154,7 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
         else:
             test_records = records.filter(lambda r: len(r['args']['test_envs']) == 2)
             if len(test_records) != 1:
+                print(1,test_env)
                 return None
 
         # Assumes test record is the FIRST one in the pair of envs in a record.
@@ -190,6 +191,7 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
         else:
             val_accs = [v for v in val_accs if v != -1]
             if not val_accs: # empty
+                print(2,test_env,val_accs)
                 return None
             val_acc = np.sum(val_accs) / len(val_accs)
             
