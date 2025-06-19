@@ -3641,12 +3641,14 @@ class GLSD(ERM):
                     penalty_max=self.hparams['glsd_penalty_lambda_max'], 
                     tau=self.hparams['glsd_penalty_tau'], 
                     penalty_power=self.hparams['glsd_penalty_power']):
-            s_power = np.power(t.cpu().item()/tau,penalty_power)
-            s_exp = np.exp(-s_power)
-            s_1m = 1 - s_exp
-            p = np.maximum(s_1m*penalty_max, 0)
-            p = penalty_min + p
-            #print(t.item(), s_power, s_exp, s_1m, p)
+            if penalty_power is not None:
+                s_power = np.power(t.cpu().item()/tau,penalty_power)
+                s_exp = np.exp(-s_power)
+                s_1m = 1 - s_exp
+                p = np.maximum(s_1m*penalty_max, 0)
+                p = penalty_min + p
+            else:
+                p = penalty_max
             return p
 
         if self.update_count >= self.hparams["glsd_penalty_warmup"]:
