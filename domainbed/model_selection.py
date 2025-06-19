@@ -2,6 +2,7 @@
 
 import itertools
 import numpy as np
+from collections import namedtuple
  
 def get_test_records(records):
     """Given records with a common test env, get the test records (i.e. the
@@ -34,7 +35,8 @@ class SelectionMethod:
             .map(lambda h_seed, run_records:
                 (
                     self.run_acc(test_env, run_records),
-                    run_records
+                    run_records,
+                    h_seed
                 )
             ).filter(lambda x: x[0] is not None)
             .sorted(key=lambda x: x[0]['val_acc'])[::-1]
@@ -48,7 +50,9 @@ class SelectionMethod:
         """
         _hparams_accs = self.hparams_accs(test_env, records)
         if len(_hparams_accs):
-            return _hparams_accs[0][0]['test_acc'], _hparams_accs[0][0]['step']
+            Sweep_point = namedtuple("Sweep_point", "seed step")
+            sweep_point = Sweep_point(seed=_hparams_accs[0][2], step=_hparams_accs[0][0]['step'])
+            return _hparams_accs[0][0]['test_acc'], sweep_point 
         else:
             return None, None
 

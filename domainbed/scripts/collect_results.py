@@ -61,7 +61,7 @@ def merge_records(records):
         merged_records.append(merged_record)
     return Q(merged_records)
 
-def format_mean(data, latex, step=None):
+def format_mean(data, latex, sweep_point=None):
     """Given a list of datapoints, return a string describing their mean and
     standard error"""
     if len(data) == 0:
@@ -69,15 +69,15 @@ def format_mean(data, latex, step=None):
     mean = 100 * np.mean(list(data))
     err = 100 * np.std(list(data) / np.sqrt(len(data)))
     if latex:
-        if step is None:
+        if sweep_point is None:
             return mean, err, "{:.1f} $\\pm$ {:.1f}".format(mean, err)
         else:
-            return mean, err, "{:.1f} $\\pm$ {:.1f} @ {}".format(mean, err, step[0])
+            return mean, err, "{:.1f} $\\pm$ {:.1f} @ {}/{}".format(mean, err, sweep_point[0].seed, sweep_point[0].step)
     else:
-        if step is None:
+        if sweep_point is None:
             return mean, err, "{:.1f} +/- {:.1f}".format(mean, err)
         else:
-            return mean, err, "{:.1f} +/- {:.1f} @ {}".format(mean, err, step[0])
+            return mean, err, "{:.1f} +/- {:.1f} @ {}/{}".format(mean, err, sweep_point[0].seed, sweep_point[0].step)
         
 def print_table(table, header_text, row_labels, col_labels, colwidth=10,
     latex=True):
@@ -123,7 +123,7 @@ def print_results_tables(records, selection_method, latex):
     # in test_envs.
     grouped_records = grouped_records.map(lambda group:
         { **group, 
-          **dict(zip(["sweep_acc", "step"], selection_method.sweep_acc(group["test_env"], group["records"]))) }
+          **dict(zip(["sweep_acc", "sweep_point"], selection_method.sweep_acc(group["test_env"], group["records"]))) }
     ).filter(lambda g: g["sweep_acc"] is not None)
     """grouped records is a Q (list?) of dictionaries with entries from grouped_records above
     with added sweep_acc key. Note that sweep_acc is calculated by selection_method when it's
@@ -156,8 +156,8 @@ def print_results_tables(records, selection_method, latex):
                                         (dataset, algorithm, test_env)
                     ))
                 trial_accs = trial_rec.select("sweep_acc")
-                step = trial_rec.select("step")
-                mean, err, table[i][j] = format_mean(trial_accs, latex, step)
+                sweep_point = trial_rec.select("sweep_point")
+                mean, err, table[i][j] = format_mean(trial_accs, latex, sweep_point)
                 means.append(mean)
             if None in means:
                 table[i][-1] = "X"
