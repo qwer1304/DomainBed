@@ -107,19 +107,20 @@ def all_test_env_combinations(n):
 
 def all_test_env_combinations_list(x):
     """
-    For a list of envs in a dataset with n >= 3 envs, return all combinations of 1 and 2 test
+    For a list of lists of envs in a dataset with n >= 3 envs, return all combinations of 1 and 2 test
     envs.
     """
-    n = len(x)
-    assert(n >= 2)
-    if n >= 3:
-        for i in range(n):
-            yield [x[i]]
-            for j in range(i+1, n):
-                yield [x[i], x[j]]
-    elif n == 2:
-        yield [x[0], x[1]]        
-
+    assert(all([len(l) >= 2 for l in x]))
+    for l in x:
+        n = len(l)
+        if n >= 3:
+            for i in range(n):
+                yield [l[i]]
+                for j in range(i+1, n):
+                    yield [l[i], l[j]]
+        elif n == 2:
+            yield [l[0], l[1]]   
+            
 def make_args_list(n_trials, dataset_names, algorithms, n_hparams_from, n_hparams, steps,
     data_dir, task, holdout_fraction, single_test_envs, specific_test_envs, hparams, 
     save_model_every_checkpoint, checkpoint_use_current_args, checkpoint_dont_reload_optimizer,
@@ -137,9 +138,10 @@ def make_args_list(n_trials, dataset_names, algorithms, n_hparams_from, n_hparam
                         all_test_envs = all_test_env_combinations(
                             datasets.num_environments(dataset))
                 else:
+                    # specific_test_envs is a list of lists
                     if single_test_envs:
                         all_test_envs = [
-                            [i] for i in specific_test_envs]
+                            i for i in specific_test_envs]
                     else:
                         all_test_envs = all_test_env_combinations_list(
                             specific_test_envs)
@@ -199,7 +201,8 @@ if __name__ == "__main__":
     parser.add_argument('--hparams', type=str, default=None)
     parser.add_argument('--holdout_fraction', type=float, default=0.2)
     parser.add_argument('--single_test_envs', action='store_true')
-    parser.add_argument('--specific_test_envs', type=int, nargs='+', default=None)
+    parser.add_argument('--specific_test_envs', type=int, nargs='+', action='append', default=None,
+        help='May be given several times.')
     parser.add_argument('--skip_confirmation', action='store_true')
     parser.add_argument('--load_from_checkpoint', action='store_true',    
         help='Resume from checkpoint.')

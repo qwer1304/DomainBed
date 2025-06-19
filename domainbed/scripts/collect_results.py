@@ -112,10 +112,17 @@ def print_results_tables(records, selection_method, latex):
         for r in grouped_records:
             r['records'] = merge_records(r['records'])
 
+    # Must pass in test_env for leave-one-out selection method so that it knows what test env of
+    # those in test_envs to look at and hence what the val_env is (the other env in the pair of envs
+    # in test_envs.
     grouped_records = grouped_records.map(lambda group:
-        { **group, "sweep_acc": selection_method.sweep_acc(group["records"]) }
+        { **group, "sweep_acc": selection_method.sweep_acc(group["test_env"], group["records"]) }
     ).filter(lambda g: g["sweep_acc"] is not None)
-
+    """grouped records is a Q (list?) of dictionaries with entries from grouped_records above
+    with added sweep_acc key. Note that sweep_acc is calculated by selection_method when it's
+    been given ONLY the records of a group. This means that the test_envs it sees are the ones
+    in args.test_envs.
+    Then filter out ONLY groups which sweep_acc is not None."""
 
     # read algorithm names and sort (predefined order)
     alg_names = Q(records).select("args.algorithm").unique()

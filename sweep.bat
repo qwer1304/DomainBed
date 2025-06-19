@@ -5,8 +5,8 @@ python -m domainbed.scripts.sweep launch^
        --algorithms GLSD_SSD^
        --datasets ColoredMNIST^
        --n_hparams 3^
-       --single_test_envs^
-       --specific_test_envs 4^
+       --specific_test_envs 3 4^
+       --specific_test_envs 0 4^
        --n_trials 1^
        --skip_confirmation^
        --checkpoint_freq 100^
