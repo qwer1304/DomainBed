@@ -238,7 +238,8 @@ def _hparams(algorithm, dataset, random_seed):
         if algorithm == "ADRMX":
             _hparam('lr', 3e-3, lambda r: r.choice([5e-4, 1e-3, 2e-3, 3e-3]))
         elif algorithm == "GLSD_SSD" or algorithm == "GLSD_FSD":
-            _hparam('lr', 1e-3, lambda r: r.choice([5e-4, 1e-3, 2e-3, 3e-3]))
+            #_hparam('lr', 1e-3, lambda r: r.choice([5e-4, 1e-3, 2e-3, 3e-3]))
+            _hparam('lr', 1e-3, lambda r: 10**r.uniform(-4.5, -2.5))
         else:
             _hparam('lr', 1e-3, lambda r: 10**r.uniform(-4.5, -2.5))
     else:
@@ -254,7 +255,8 @@ def _hparams(algorithm, dataset, random_seed):
 
     if dataset in SMALL_IMAGES:
         if algorithm == "GLSD_SSD" or algorithm == "GLSD_FSD":
-            _hparam('batch_size', 64, lambda r: int(2**r.uniform(5, 7)))
+            #_hparam('batch_size', 64, lambda r: int(2**r.uniform(5, 7)))
+            _hparam('batch_size', 64, lambda r: int(2**r.uniform(3, 9)))
         else:
             _hparam('batch_size', 64, lambda r: int(2**r.uniform(3, 9)))
     elif algorithm == 'ARM':
