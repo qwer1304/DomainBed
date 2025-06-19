@@ -253,7 +253,7 @@ def _hparams(algorithm, dataset, random_seed):
         _hparam('weight_decay', 0., lambda r: 10**r.uniform(-6, -2))
 
     if dataset in SMALL_IMAGES:
-        if algorithm == "GLSD_SSD" or algorithm == GLSD_FSD:
+        if algorithm == "GLSD_SSD" or algorithm == "GLSD_FSD":
             _hparam('batch_size', 64, lambda r: int(2**r.uniform(5, 7)))
         else:
             _hparam('batch_size', 64, lambda r: int(2**r.uniform(3, 9)))
