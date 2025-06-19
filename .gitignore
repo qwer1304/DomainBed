@@ -3,4 +3,4 @@ domainbed/facebook.py
 
 domainbed/data/*
 train_output/*
-domainbed/sweep/*
+sweep/*

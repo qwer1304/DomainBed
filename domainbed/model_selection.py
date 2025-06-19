@@ -27,10 +27,11 @@ class SelectionMethod:
     def hparams_accs(self, test_env, records):
         """
         Given all records from a single (dataset, algorithm, test env) triplet,
-        return a sorted list of (run_acc, records) tuples.
+        return a sorted list of (run_acc, records, hparams_seed) tuples.
         """
+        # group() returns a list of (group, group_records)
         return (records.group('args.hparams_seed')
-            .map(lambda _, run_records:
+            .map(lambda h_seed, run_records:
                 (
                     self.run_acc(test_env, run_records),
                     run_records
@@ -42,14 +43,14 @@ class SelectionMethod:
     @classmethod
     def sweep_acc(self, test_env, records):
         """
-        Given all records from a single (dataset, algorithm, test env) pair,
+        Given all records from a single (dataset, algorithm, test env) triplet,
         return the mean test acc of the k runs with the top val accs.
         """
         _hparams_accs = self.hparams_accs(test_env, records)
         if len(_hparams_accs):
-            return _hparams_accs[0][0]['test_acc']
+            return _hparams_accs[0][0]['test_acc'], _hparams_accs[0][0]['step']
         else:
-            return None
+            return None, None
 
 class OracleSelectionMethod(SelectionMethod):
     """Like Selection method which picks argmax(test_out_acc) across all hparams
@@ -70,7 +71,8 @@ class OracleSelectionMethod(SelectionMethod):
         chosen_record = run_records.sorted(lambda r: r['step'])[-1]
         return {
             'val_acc':  chosen_record[test_out_acc_key],
-            'test_acc': chosen_record[test_in_acc_key]
+            'test_acc': chosen_record[test_in_acc_key],
+            'step':     chosen_record['step']
         }
 
 class IIDAccuracySelectionMethod(SelectionMethod):
@@ -89,8 +91,9 @@ class IIDAccuracySelectionMethod(SelectionMethod):
                 val_env_keys.append(f'env{i}_out_acc')
         test_in_acc_key = 'env{}_in_acc'.format(test_env)
         return {
-            'val_acc': np.mean([record[key] for key in val_env_keys]),
-            'test_acc': record[test_in_acc_key]
+            'val_acc':  np.mean([record[key] for key in val_env_keys]),
+            'test_acc': record[test_in_acc_key],
+            'step':     record['step']
         }
 
     @classmethod
@@ -117,8 +120,9 @@ class IIDAutoLRAccuracySelectionMethod(SelectionMethod):
                 val_env_keys.append(f'env{i}_out_acc')
         test_in_acc_key = 'fd_env{}_in_acc'.format(test_env)
         return {
-            'val_acc': np.mean([record[key] for key in val_env_keys]),
-            'test_acc': record[test_in_acc_key]
+            'val_acc':  np.mean([record[key] for key in val_env_keys]),
+            'test_acc': record[test_in_acc_key],
+            'step':     record['step']
         }
 
     @classmethod
@@ -192,10 +196,15 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
 
     @classmethod
     def run_acc(self, test_env, records):
+        # records are all run records (i.e., for a single dataset, algorithm, test_env, hash_seed)
+        # group() returns a list of (group, group_records)
         step_accs = records.group('step').map(lambda step, step_records:
-            self._step_acc(test_env, step_records)
+            {**self._step_acc(test_env, step_records), "step": step}
         ).filter_not_none()
+        # step_acc() returns a dictionary with val_acc and test_acc keys
+        # step_accs is a query (list) of run step_acc() results grouped according to step
         if len(step_accs):
+            # argmax returns the dictionary with biggest val_acc.
             return step_accs.argmax('val_acc')
         else:
             return None
