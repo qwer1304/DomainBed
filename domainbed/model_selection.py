@@ -208,7 +208,7 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
         step_accs = records.group('step').map(lambda step, step_records:
             (self._step_acc(test_env, step_records), step)
         )
-        step_accs = step.accs.filter(lambda r: r[0] is not None)
+        step_accs = step_accs.filter(lambda r: r[0] is not None)
         step_accs = step_accs.map(lambda r: {**r[0], "step": r[1]})
         # step_acc() returns a dictionary with val_acc and test_acc keys
         # step_accs is a query (list) of run step_acc() results grouped according to step
