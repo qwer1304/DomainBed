@@ -171,8 +171,10 @@ def print_results_tables(records, selection_method, latex):
         ]
         header_text = (f"Dataset: {dataset}, "
             f"model selection method: {selection_method.name}")
+        # make col_width minimum of 25 and maximum of 20 and length of all entries in the table
+        col_width = min(max(max(len(s) for sublist in table for s in sublist),20),25)
         print_table(table, header_text, alg_names, list(col_labels),
-            colwidth=20, latex=latex)
+            colwidth=col_width, latex=latex)
 
     # Print an "averages" table
     if latex:
