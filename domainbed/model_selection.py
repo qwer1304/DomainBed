@@ -3,6 +3,7 @@
 import itertools
 import numpy as np
 from collections import namedtuple
+from warnings import warn
  
 def get_test_records(records):
     """Given records with a common test env, get the test records (i.e. the
@@ -154,6 +155,7 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
         else:
             test_records = records.filter(lambda r: len(r['args']['test_envs']) == 2)
             if len(test_records) != 1:
+                warnings.warn("More that one record for the same step found. You probably have stale results directories.")
                 return None
 
         # Assumes test record is the FIRST one in the pair of envs in a record.
@@ -190,6 +192,7 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
         else:
             val_accs = [v for v in val_accs if v != -1]
             if not val_accs: # empty
+                warnings.warn(f"No val_acc found corresponding to {test_env}.")
                 return None
             val_acc = np.sum(val_accs) / len(val_accs)
             
