@@ -9,6 +9,7 @@ import types
 import unittest
 import warnings
 import math
+import operator
 
 import numpy as np
 
@@ -150,6 +151,11 @@ class Q(object):
         """like [x for x in y if x.selector == value]"""
         selector = make_selector_fn(selector)
         return self.filter(lambda r: selector(r) == value)
+
+    def filter_lop(self, selector, value, lop):
+        """like [x for x in y if lop(x.selector, value)]"""
+        selector = make_selector_fn(selector)
+        return self.filter(lambda r: lop(selector(r), value))
 
     def filter_not_none(self):
         return self.filter(lambda r: r is not None)

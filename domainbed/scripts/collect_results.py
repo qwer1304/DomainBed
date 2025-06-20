@@ -22,6 +22,7 @@ from domainbed.lib import misc, reporting
 from domainbed import model_selection
 from domainbed.lib.query import Q
 import warnings
+import operator
 
 def remove_key(d,key):
     new_d = d.copy()
@@ -110,14 +111,21 @@ def print_table(table, header_text, row_labels, col_labels, colwidth=10,
         print("\\end{tabular}}")
         print("\\end{center}")
 
-def print_results_tables(records, selection_method, latex):
+def print_results_tables(records, selection_method, latex, start_step=0, end_step=None):
     """Given all records, print a results table for each dataset."""
+
+    if start_step > 0:
+        records = records.filter_lop("step", start_step, operator.ge)
+
+    if end_step is not None:
+        records = records.filter_lop('step', end_step, operator.lt)
+
     grouped_records = reporting.get_grouped_records(records)
 
     if selection_method == model_selection.IIDAutoLRAccuracySelectionMethod:
         for r in grouped_records:
             r['records'] = merge_records(r['records'])
-
+       
     # Must pass in test_env for leave-one-out selection method so that it knows what test env of
     # those in test_envs to look at and hence what the val_env is (the other env in the pair of envs
     # in test_envs.
@@ -212,7 +220,11 @@ if __name__ == "__main__":
     parser.add_argument("--input_dir", type=str, required=True)
     parser.add_argument("--latex", action="store_true")
     parser.add_argument("--auto_lr", action="store_true")
+    parser.add_argument("--start_step", type=int, default=0, help="Start step (inclusive) to begin analysis at.")
+    parser.add_argument("--end_step", type=int, default=None, help="End step (exclusive) to end analysis at.")
     args = parser.parse_args()
+    if args.end_step is not None and args.start_step >= args.end_step:
+        raise ValueError("start step must be smaller than end step")
 
     results_file = "results.tex" if args.latex else "results.txt"
 
@@ -244,7 +256,7 @@ if __name__ == "__main__":
             print()
             print("\\subsection{{Model selection: {}}}".format(
                 selection_method.name))
-        print_results_tables(records, selection_method, args.latex)
+        print_results_tables(records, selection_method, args.latex, start_step=args.start_step, end_step=args.end_step)
 
     if args.latex:
         print("\\end{document}")
