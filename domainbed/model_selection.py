@@ -3,7 +3,7 @@
 import itertools
 import numpy as np
 from collections import namedtuple
-from warnings import warn
+import warnings
  
 def get_test_records(records):
     """Given records with a common test env, get the test records (i.e. the
