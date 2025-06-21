@@ -11,6 +11,7 @@ import uuid
 import glob
 import copy
 import warnings
+import hashlib
 
 import numpy as np
 import PIL
@@ -101,6 +102,8 @@ if __name__ == "__main__":
         help='Checkpoint every N steps. Default is dataset-dependent.')
     parser.add_argument('--test_envs', type=int, nargs='+', default=[0])
     parser.add_argument('--output_dir', type=str, default="train_output")
+    parser.add_argument('--output_dir_hash', action='store_true', 
+        help='Append subdirectory to output_dir named hash of arguments (as in sweep).')
     parser.add_argument('--holdout_fraction', type=float, default=0.2)
     parser.add_argument('--uda_holdout_fraction', type=float, default=0,
         help="For domain adaptation, % of test to use unlabeled for training.")
@@ -159,6 +162,15 @@ if __name__ == "__main__":
         optimizer_dict = None
         rng_dict = None
         from_checkpoint = False
+        if args.output_dir_hash:
+            train_args = vars(args) # make args a dictionary
+            train_args_for_hash = copy.deepcopy(train_args)
+            del train_args_for_hash['output_dir'] # delete given output_dir from hash calculation
+            if 'load_from_checkpoint' in train_args_for_hash:
+                del train_args_for_hash['load_from_checkpoint']
+            args_str = json.dumps(train_args_for_hash, sort_keys=True)
+            args_hash = hashlib.md5(args_str.encode('utf-8')).hexdigest()
+            args.output_dir = os.path.join(args.output_dir, args_hash)
 
     os.makedirs(args.output_dir, exist_ok=True)
     os.makedirs(os.path.join(args.output_dir, 'checkpoints/'), exist_ok=True)
