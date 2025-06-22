@@ -153,7 +153,7 @@ if __name__ == "__main__":
             print("Loading from", filename)           
             from_checkpoint = True
         else:
-            warnings.warn(f"Warning: Loading from checkpoint, but no file {filename} exists! Defaulting to initial clean state.")
+            warnings.warn(f"Warning: Loading from checkpoint, but no file {filename} exists! Defaulting to initial clean state.", filename)
     if not from_checkpoint:
         if (args.checkpoint_load_file is not None) or (args.checkpoint_use_current_args):
             warnings.warn("Checkpoint load related options given, but loading from checkpoint not requested.")
