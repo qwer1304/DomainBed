@@ -141,19 +141,19 @@ if __name__ == "__main__":
             return latest
 
         if args.checkpoint_load_file is None:
-            filename = os.path.join(args.output_dir, 'checkpoints', 'model_step*.pkl')
+            _filename = os.path.join(args.output_dir, 'checkpoints', 'model_step*.pkl')
         else:
-            filename = args.checkpoint_load_file # filename + path provided
-        filename = latest_file(filename)
-        if filename is not None:
+            _filename = args.checkpoint_load_file # filename + path provided
+        filename_ = latest_file(_filename)
+        if filename_ is not None:
             if args.checkpoint_use_current_args:
-                _, hparams, algorithm_dict, start_step, otimizer_dict, rng_dict = load_checkpoint(filename)
+                _, hparams, algorithm_dict, start_step, otimizer_dict, rng_dict = load_checkpoint(filename_)
             else:
-               args, hparams, algorithm_dict, start_step, otimizer_dict, rng_dict = load_checkpoint(filename)
-            print("Loading from", filename)           
+               args, hparams, algorithm_dict, start_step, otimizer_dict, rng_dict = load_checkpoint(filename_)
+            print("Loading from", filename_)           
             from_checkpoint = True
         else:
-            warnings.warn(f"Warning: Loading from checkpoint, but no file {filename} exists! Defaulting to initial clean state.", filename)
+            warnings.warn(f"Warning: Loading from checkpoint, but no file {_filename} exists! Defaulting to initial clean state.")
     if not from_checkpoint:
         if (args.checkpoint_load_file is not None) or (args.checkpoint_use_current_args):
             warnings.warn("Checkpoint load related options given, but loading from checkpoint not requested.")
