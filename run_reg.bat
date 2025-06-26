@@ -7,4 +7,4 @@ python -m domainbed.scripts.train^
        --test_env 4^
        --steps 2500^
        --hparams "{\"glsd_as_regularizer\": true, \"glsd_dominate_all_domains\": true}"^
-       --set_seed_every_epoch
+       --regularize_model_selection

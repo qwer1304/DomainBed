@@ -73,11 +73,13 @@ class OracleSelectionMethod(SelectionMethod):
         test_env = run_records[0]['args']['test_envs'][0]
         test_out_acc_key = 'env{}_out_acc'.format(test_env)
         test_in_acc_key = 'env{}_in_acc'.format(test_env)
+        Vf_key = 'env{}_Vf'.format(test_env)
         chosen_record = run_records.sorted(lambda r: r['step'])[-1]
         return {
             'val_acc':  chosen_record[test_out_acc_key],
             'test_acc': chosen_record[test_in_acc_key],
             'step':     chosen_record['step']
+            'Vf':       record[Vf_key]
         }
 
 class IIDAccuracySelectionMethod(SelectionMethod):
@@ -95,10 +97,12 @@ class IIDAccuracySelectionMethod(SelectionMethod):
             if i != test_env:
                 val_env_keys.append(f'env{i}_out_acc')
         test_in_acc_key = 'env{}_in_acc'.format(test_env)
+        Vf_key = 'env{}_Vf'.format(test_env)
         return {
             'val_acc':  np.mean([record[key] for key in val_env_keys]),
             'test_acc': record[test_in_acc_key],
             'step':     record['step']
+            'Vf':       record[Vf_key]
         }
 
     @classmethod
@@ -124,10 +128,12 @@ class IIDAutoLRAccuracySelectionMethod(SelectionMethod):
             if i != test_env:
                 val_env_keys.append(f'env{i}_out_acc')
         test_in_acc_key = 'fd_env{}_in_acc'.format(test_env)
+        Vf_key = 'fd_env{}_Vf'.format(test_env)
         return {
             'val_acc':  np.mean([record[key] for key in val_env_keys]),
             'test_acc': record[test_in_acc_key],
-            'step':     record['step']
+            'step':     record['step'],
+            'Vf':       record[Vf_key]
         }
 
     @classmethod
@@ -179,6 +185,7 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
         To calculate val_acc of the 2nd test group it must exist in test_envs when swept
         with that env in the 1st position in test_envs. But sweep generates COMBINATIONS only."""
         val_accs = np.zeros(n_envs) - 1
+        val_accs = np.zeros(n_envs) - 1
         for r in records.filter(lambda r: len(r['args']['test_envs']) == 2):
             val_env = (set(r['args']['test_envs']) - set([test_env])).pop()
             val_accs[val_env] = r['env{}_in_acc'.format(val_env)]
@@ -197,8 +204,9 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
             val_acc = np.sum(val_accs) / len(val_accs)
             
         return {
-            'val_acc': val_acc,
-            'test_acc': test_records[0]['env{}_in_acc'.format(test_env)]
+            'val_acc':  val_acc,
+            'test_acc': test_records[0]['env{}_in_acc'.format(test_env)],
+            'Vf':       test_records[0]['env{}_Vf'.format(test_env)]
         }
 
     @classmethod

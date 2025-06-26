@@ -24,6 +24,7 @@ from domainbed import hparams_registry
 from domainbed import algorithms
 from domainbed.lib import misc
 from domainbed.lib.fast_data_loader import InfiniteDataLoader, FastDataLoader
+from domainbed.model_selection_regularize import regularize_model_selection
 
 if __name__ == "__main__":
 
@@ -127,6 +128,9 @@ if __name__ == "__main__":
         help='Print the last result instead of averaging over all steps from the last print.')
     parser.add_argument('--set_seed_every_epoch', action='store_true',    
         help='Set seeds to the current epoch every epoch start.')
+    parser.add_argument('--regularize_model_selection', action='store_true',    
+        help='Regularize model selection.')
+    
     args = parser.parse_args()
 
     # If we ever want to implement checkpointing, just persist these values
@@ -368,10 +372,17 @@ if __name__ == "__main__":
                 else:
                     results[key] = np.mean(val)
 
-            evals = zip(eval_loader_names, eval_loaders, eval_weights)
+            evals = list(zip(eval_loader_names, eval_loaders, eval_weights))
             for name, loader, weights in evals:
                 acc = misc.accuracy(algorithm, loader, weights, device)
                 results[name+'_acc'] = acc
+            
+            if args.regularize_model_selection:
+                Vf = regularize_model_selection(algorithm, evals, dataset.num_classes, device).values()
+            else:
+                Vf = [0]*len(eval_loader_names)
+            for i,name in enumerate(eval_loader_names):
+                results[name+'_Vf'] = Vf[i]
 
             results['mem_gb'] = torch.cuda.max_memory_allocated() / (1024.*1024.*1024.)
 
