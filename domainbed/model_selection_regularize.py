@@ -31,13 +31,13 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
     """Regualrize model selection.
     Inputs:
         algorithm:
-        evals: list of tuples (eval_loader_names, eval_loaders, eval_weights)
+        evals: list of tuples (eval_loader_name, eval_loader, eval_weight)
         num_claases:
         device:
     Output:
         Vf: Tensor (N,) for each domain excluded
     """
-    N = len(evals[0][0]) # total number of domains
+    N = len(evals) # total number of domains
     M = 200 # grid for kde
     with torch.no_grad():
         algorithm.featurizer.eval()
@@ -80,7 +80,6 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
             TV_avail_list = []
             for i in range(N):
                 mask = torch.arange(N) != i  # exclude index i
-                print("N=",N,"TV=",TV.size())
                 sub = TV[mask][:, mask]      # (N-1, N-1, D)
                 TV_avail_list.append(sub.max((0,1))[0]) # list of (D,)
             TV_avail = torch.stack(TV_avail_list, dim=0) # (N,D)
