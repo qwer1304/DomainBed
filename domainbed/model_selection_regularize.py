@@ -75,11 +75,12 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
             bandwidths = 1.06 * stds * phis.size()[0] ** (-1 / 5)
             kde_result_list = [gaussian_kde(phi, grid, bandwidth=bandwidths) for phi in phis_list] # list of (M,D) tensors
             kde_result = torch.stack(kde_result_list, dim=0) # (N,M,D)
-            # (N,N,D)     (N,1,M,D)            (1,N,N,D)
+            # (N,N,D)     (N,1,M,D)            (1,N,M,D)
             TV = (kde_result.unsqueeze(1) - kde_result.unsqueeze(0)).abs().sum(2)
             TV_avail_list = []
             for i in range(N):
                 mask = torch.arange(N) != i  # exclude index i
+                print("N=",N,"TV=",TV.size())
                 sub = TV[mask][:, mask]      # (N-1, N-1, D)
                 TV_avail_list.append(sub.max((0,1))[0]) # list of (D,)
             TV_avail = torch.stack(TV_avail_list, dim=0) # (N,D)
