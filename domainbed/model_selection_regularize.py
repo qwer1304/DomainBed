@@ -41,8 +41,10 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
     M = 200 # grid for kde
     ind_in = [i for i, (s,_,_) in enumerate(evals) if "in" in s]
     ind_out = [i for i, (s,_,_) in enumerate(evals) if "out" in s]
-    ind_split = torch.stack(ind_in + ind_out, dim=0)
-
+    ind_split = torch.stack([
+        torch.tensor(ind_in),
+        torch.tensor(ind_out)
+    ], dim=0)
     with torch.no_grad():
         algorithm.featurizer.eval()
         phis_list = []
