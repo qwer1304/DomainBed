@@ -63,7 +63,6 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
         for y in range(num_classes):
             # list of per-domain tensors for y
             phis = [phis_list[i][ys_list[i] == y] for i in range(len(phis_list))] # each tensor i is (Bi,D)
-            phis = torch.cat(phis, dim=0) # (N*Bi,D)
             phis = torch.cat(phis, dim=0).to(device)
             # Create per-dimension grid
             stds = phis.std(dim=0) # (D,)
