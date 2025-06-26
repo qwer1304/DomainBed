@@ -81,8 +81,8 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
             for i in range(N):
                 mask = torch.arange(N) != i  # exclude index i
                 sub = TV[mask][:, mask]      # (N-1, N-1, D)
-                TV_avail_list.append(sub.max((0,1))[0]) # list of (D,)
-            TV_avail = torch.stack(TV_avail_list, dim=0) # (N,D)
+                TV_avail_list.append(torch.amax(sub, dim=(0, 1)))  # appends (D,) tensor
+                TV_avail = torch.stack(TV_avail_list, dim=0) # (N,D)
             TV_list.append(TV_avail) # list of (N,D,)
         TV = torch.stack(TV_list,dim=0) # (num_classes, N, D)
         TV = TV.max(dim=0)[0] # (N,D,)
