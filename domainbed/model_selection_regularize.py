@@ -37,8 +37,12 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
     Output:
         Vf: Tensor (N,) for each domain excluded
     """
-    N = len(evals) # total number of domains
+    N = len(evals) # total number of domains, includes both "in" and "out" splits
     M = 200 # grid for kde
+    ind_in = [i for i, (s,_,_) in enumerate(evals) if "in" in s]
+    ind_out = [i for i, (s,_,_) in enumerate(evals) if "out" in s]
+    ind_split = torch.stack([ind_in, in_out], dim=0)
+
     with torch.no_grad():
         algorithm.featurizer.eval()
         phis_list = []
@@ -77,12 +81,15 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
             kde_result = torch.stack(kde_result_list, dim=0) # (N,M,D)
             # (N,N,D)     (N,1,M,D)            (1,N,M,D)
             TV = (kde_result.unsqueeze(1) - kde_result.unsqueeze(0)).abs().sum(2)
-            TV_avail_list = []
-            for i in range(N):
-                mask = torch.arange(N) != i  # exclude index i
-                sub = TV[mask][:, mask]      # (N-1, N-1, D)
-                TV_avail_list.append(torch.amax(sub, dim=(0, 1)))  # appends (D,) tensor
-                TV_avail = torch.stack(TV_avail_list, dim=0) # (N,D)
+            
+            TV_avail_list = [0]*N
+            for i in range(ind_split.size(0)):
+                TTV = TV[ind_split[i],ind_split[i]]
+                for j in range(ind_split.size(1)):
+                    mask = torch.arange(ind_split.size(1)) != j  # exclude index j
+                    sub = TTV[mask][:, mask]      # (k-1, k-1, D)
+                    TV_avail_list[ind_splits[i][j]] = torch.amax(sub, dim=(0, 1))  # inserts (D,) tensor
+            TV_avail = torch.stack(TV_avail_list, dim=0) # (N,D)
             TV_list.append(TV_avail) # list of (N,D,)
         TV = torch.stack(TV_list,dim=0) # (num_classes, N, D)
         TV = TV.max(dim=0)[0] # (N,D,)
