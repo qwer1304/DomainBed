@@ -58,7 +58,7 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
             phis_list.append(phis)
             ys_list.append(ys)
             
-        D = phis_list[0].shape[0]
+        D = phis_list[0].shape[1]
         TV_list = []
         for y in range(num_classes):
             # list of per-domain tensors for y
