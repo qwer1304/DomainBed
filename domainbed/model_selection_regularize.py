@@ -83,6 +83,7 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
             kde_result = torch.stack(kde_result_list, dim=0) # (N,M,D)
             # (N,N,D)     (N,1,M,D)            (1,N,M,D)
             TV = (kde_result.unsqueeze(1) - kde_result.unsqueeze(0)).abs().sum(2)
+            print(TV.size())
             
             TV_avail_list = [0]*N
             for i in range(ind_split.size(0)): # N
