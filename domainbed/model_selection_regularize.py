@@ -67,7 +67,7 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
             # Create per-dimension grid
             stds = phis.std(dim=0) # (D,)
             max_vals = torch.max(phis, dim=0)[0] # (D,)
-            max_vals = max_vals + std
+            max_vals = max_vals + stds
             min_vals = torch.min(phis, dim=0)[0] # (D,)
             min_vals = min_vals - stds
             grid = torch.stack([torch.linspace(min_vals[d], max_vals[d], M, device=device) for d in range(D)], dim=1)  # (M, D)
