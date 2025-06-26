@@ -90,7 +90,7 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
                 for j in range(ind_split.size(1)):
                     mask = torch.arange(ind_split.size(1)) != j  # exclude index j
                     sub = TTV[mask][:, mask]      # (k-1, k-1, D)
-                    TV_avail_list[ind_splits[i][j]] = torch.amax(sub, dim=(0, 1))  # inserts (D,) tensor
+                    TV_avail_list[ind_split[i][j]] = torch.amax(sub, dim=(0, 1))  # inserts (D,) tensor
             TV_avail = torch.stack(TV_avail_list, dim=0) # (N,D)
             TV_list.append(TV_avail) # list of (N,D,)
         TV = torch.stack(TV_list,dim=0) # (num_classes, N, D)
