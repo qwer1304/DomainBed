@@ -85,9 +85,9 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
             TV = (kde_result.unsqueeze(1) - kde_result.unsqueeze(0)).abs().sum(2)
             
             TV_avail_list = [0]*N
-            print(ind_split)
             for i in range(ind_split.size(0)): # N
                 TTV = TV[ind_split[i],ind_split[i]]
+                print(TTV.size())
                 for j in range(ind_split.size(1)):
                     mask = torch.arange(ind_split.size(1)) != j  # exclude index j
                     sub = TTV[mask][:, mask]      # (k-1, k-1, D)
