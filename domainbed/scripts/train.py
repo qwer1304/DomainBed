@@ -378,7 +378,7 @@ if __name__ == "__main__":
                 results[name+'_acc'] = acc
             
             if args.regularize_model_selection:
-                Vf = regularize_model_selection(algorithm, evals, dataset.num_classes, device).values()
+                Vf = regularize_model_selection(algorithm, evals, dataset.num_classes, device).tolist()
             else:
                 Vf = [0]*len(eval_loader_names)
             for i,name in enumerate(eval_loader_names):
