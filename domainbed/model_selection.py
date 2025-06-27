@@ -21,6 +21,7 @@ def calculate_r0(step_accs):
     """
     accs = step_accs.select('val_acc')
     M_hat = step_accs.filter_lop("val_acc", accs.max() - 0.1, operator.gt)
+    print(accs, accs.max(),M_hat)
     r0 = M_hat.select('val_acc').std() / (M_hat.select('Vf').std() + 1e-6)
     return r0
 
@@ -250,10 +251,8 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
             # argmax returns the dictionary with biggest val_acc.
             if modselreg:
                 r0 = calculate_r0(step_accs)
-                print(r0,step_accs)
                 step_accs = step_accs.map(lambda r: 
                     (r.__setitem__('val_acc', r['val_acc'] - r0*r['Vf']), r)[1])
-                print(step_accs)
             return step_accs.argmax('val_acc')
         else:
             return None
