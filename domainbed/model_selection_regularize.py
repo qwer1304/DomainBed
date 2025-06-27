@@ -25,7 +25,7 @@ def gaussian_kde(samples, grid, bandwidth=0.1):
     kernels = torch.exp(-0.5 * diffs ** 2) / (bandwidth * (2 * torch.pi) ** 0.5)  # (M, B, D)
 
     kde = kernels.mean(dim=1)  # (M,D)
-    print('kde:',kde)
+    print(kde.min(dim=0),kde.max(dim=0))
     return kde
 
 def compute_MMD2_dist(phis_y, device='cpu'):
