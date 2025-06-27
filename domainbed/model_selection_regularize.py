@@ -93,7 +93,7 @@ def compute_TV_dist(phis_y, device='cpu', M=200):
     max_vals = max_vals + stds
     min_vals = torch.min(phis, dim=0)[0] # (D,)
     min_vals = min_vals - stds
-    deltax = (max_val - min_val) / (M - 1) # (D,)
+    deltax = (max_vals - min_vals) / (M - 1) # (D,)
     grid = torch.stack([torch.linspace(min_vals[d], max_vals[d], M, device=device) for d in range(D)], dim=1)  # (M, D)
 
     # Compute KDE for each phi in y's list over the grid for each dimension d
