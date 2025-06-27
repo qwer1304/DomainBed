@@ -140,9 +140,13 @@ class Q(object):
     def mean_std(self):
         return (self.mean(), self.std())
 
-    def argmax(self, selector):
+    def argmax(self, selector, with_index=False):
         selector = make_selector_fn(selector)
-        return max(self._list, key=selector)
+        index, item = max(enumerate(self._list), key=lambda x: selector(x[1]))
+        if with_index:
+            return item, index
+        else:
+            return item
 
     def filter(self, fn):
         return Q([x for x in self._list if fn(x)])
