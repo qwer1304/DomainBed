@@ -25,7 +25,6 @@ def gaussian_kde(samples, grid, bandwidth=0.1):
     kernels = torch.exp(-0.5 * diffs ** 2) / (bandwidth * (2 * torch.pi) ** 0.5)  # (M, B, D)
 
     kde = kernels.mean(dim=1)  # (M,D)
-    print(kde.min(dim=0),kde.max(dim=0))
     return kde
 
 def compute_MMD2_dist(phis_y, device='cpu'):
@@ -100,8 +99,8 @@ def compute_TV_dist(phis_y, device='cpu', M=200):
     # Compute KDE for each phi in y's list over the grid for each dimension d
     kde_result_list = [gaussian_kde(phi, grid, bandwidth=bandwidths) for phi in phis_y] # list of (M,D) tensors
     kde_result = torch.stack(kde_result_list, dim=0) # (N,M,D)
-    # (N,M,D)      (N,M,D)           (1,M,D)                         (1,1,D)
-    kde_norm = kde_result.sum(0,keepdim=True) # (N,M,1)
+    kde_norm = kde_result.sum(1,keepdim=True) # (N,1,D)
+    # (N,M,D)      (N,M,D)      (N,1,D)              (1,1,D)
     kde_result = kde_result / (kde_norm * deltax.unsqueeze(0).unsqueeze(1))
 
     # Compute TV between all distributions for each pair of domains and dimension
