@@ -100,7 +100,7 @@ def compute_TV_dist(phis_y, device='cpu', M=200):
     kde_result_list = [gaussian_kde(phi, grid, bandwidth=bandwidths) for phi in phis_y] # list of (M,D) tensors
     kde_result = torch.stack(kde_result_list, dim=0) # (N,M,D)
     # (N,M,D)      (N,M,D)           (1,M,D)                         (1,1,D)
-    print('kde1:',kde_result)
+    print('bandwidths:',bandwidths)
     kde_norm = kde_result.sum(0,keepdim=True) # (N,M,1)
     kde_result = kde_result / (kde_norm * deltax.unsqueeze(0).unsqueeze(1))
 
@@ -108,10 +108,6 @@ def compute_TV_dist(phis_y, device='cpu', M=200):
     #                                     (N,N,D)                                        (1,1,D)
     # (N,N,D)     (N,1,M,D)                      (1,N,M,D)                                     
     TV = 0.5 * (kde_result.unsqueeze(1) - kde_result.unsqueeze(0)).abs().sum(2) * (deltax.unsqueeze(0).unsqueeze(1))
-    print('deltax:',deltax)
-    print('TV:',TV)
-    print('kde_norm:',kde_norm)
-    print('kde2:',kde_result)
     return TV
 
 def compute_p_dist(phis, method='TV', device='cpu', M=200):
