@@ -111,7 +111,7 @@ def print_table(table, header_text, row_labels, col_labels, colwidth=10,
         print("\\end{tabular}}")
         print("\\end{center}")
 
-def print_results_tables(records, selection_method, latex, start_step=0, end_step=None):
+def print_results_tables(records, selection_method, latex, start_step=0, end_step=None, modselreg=False):
     """Given all records, print a results table for each dataset."""
 
     if start_step > 0:
@@ -131,7 +131,7 @@ def print_results_tables(records, selection_method, latex, start_step=0, end_ste
     # in test_envs.
     grouped_records = grouped_records.map(lambda group:
         { **group, 
-          **dict(zip(["sweep_acc", "sweep_point"], selection_method.sweep_acc(group["test_env"], group["records"]))) }
+          **dict(zip(["sweep_acc", "sweep_point"], selection_method.sweep_acc(group["test_env"], group["records"], modselreg))) }
     ).filter(lambda g: g["sweep_acc"] is not None)
     """grouped records is a Q (list?) of dictionaries with entries from grouped_records above
     with added sweep_acc key. Note that sweep_acc is calculated by selection_method when it's
@@ -222,6 +222,7 @@ if __name__ == "__main__":
     parser.add_argument("--auto_lr", action="store_true")
     parser.add_argument("--start_step", type=int, default=0, help="Start step (inclusive) to begin analysis at.")
     parser.add_argument("--end_step", type=int, default=None, help="End step (exclusive) to end analysis at.")
+    parser.add_argument("--modselreg", action="store_true", help="Regularize model selection.")
     args = parser.parse_args()
     if args.end_step is not None and args.start_step >= args.end_step:
         raise ValueError("start step must be smaller than end step")
@@ -256,7 +257,7 @@ if __name__ == "__main__":
             print()
             print("\\subsection{{Model selection: {}}}".format(
                 selection_method.name))
-        print_results_tables(records, selection_method, args.latex, start_step=args.start_step, end_step=args.end_step)
+        print_results_tables(records, selection_method, args.latex, start_step=args.start_step, end_step=args.end_step, modselreg=args.modselreg)
 
     if args.latex:
         print("\\end{document}")
