@@ -83,13 +83,18 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
             max_vals = max_vals + stds
             min_vals = torch.min(phis, dim=0)[0] # (D,)
             min_vals = min_vals - stds
+            deltax = (max_val - min_val) / (M - 1) # (D,)
             grid = torch.stack([torch.linspace(min_vals[d], max_vals[d], M, device=device) for d in range(D)], dim=1)  # (M, D)
             # Per-dimension bandwidth (e.g., Silverman's rule of thumb)
             bandwidths = 1.06 * stds * phis.size()[0] ** (-1 / 5)
             kde_result_list = [gaussian_kde(phi, grid, bandwidth=bandwidths) for phi in phis_list] # list of (M,D) tensors
             kde_result = torch.stack(kde_result_list, dim=0) # (N,M,D)
-            # (N,N,D)     (N,1,M,D)            (1,N,M,D)
-            TV = (kde_result.unsqueeze(1) - kde_result.unsqueeze(0)).abs().sum(2)
+            # (N,M,D)      (N,M,D)           (1,M,D)                         (1,1,D)
+            kde_result = kde_result / ((kde_result.sum(0,keepdim=True) * deltax.unsqueeze(0).unsqueeze(1))
+
+            #                                     (N,N,D)                                        (1,1,D)
+            # (N,N,D)     (N,1,M,D)                      (1,N,M,D)                                     
+            TV = 0.5 * (kde_result.unsqueeze(1) - kde_result.unsqueeze(0)).abs().sum(2) * (deltax.unsqueeze(0).unsqueeze(1))
             
             TV_avail_list = [0]*N
             for i in range(ind_split.size(0)): # N
