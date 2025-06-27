@@ -27,6 +27,40 @@ def gaussian_kde(samples, grid, bandwidth=0.1):
     kde = kernels.mean(dim=1)  # (M,D)
     return kde
 
+    def compute_TV_dist(phis_y, method='TV', device='cpu', M=200):
+        # phis_y: list of tensors (Bi,D)
+        phis = torch.cat(phis_y, dim=0).to(device)
+        B, D = phis.size()
+        
+        stds = phis.std(dim=0) # (D,)
+
+        # Per-dimension bandwidth (e.g., Silverman's rule of thumb)
+        bandwidths = 1.06 * stds * B ** (-1 / 5)
+
+        # Create per-dimension grid
+        max_vals = torch.max(phis, dim=0)[0] # (D,)
+        max_vals = max_vals + stds
+        min_vals = torch.min(phis, dim=0)[0] # (D,)
+        min_vals = min_vals - stds
+        deltax = (max_val - min_val) / (M - 1) # (D,)
+        grid = torch.stack([torch.linspace(min_vals[d], max_vals[d], M, device=device) for d in range(D)], dim=1)  # (M, D)
+
+        # Compute KDE for each phi in y's list over the grid for each dimension d
+        kde_result_list = [gaussian_kde(phi, grid, bandwidth=bandwidths) for phi in phis_y] # list of (M,D) tensors
+        kde_result = torch.stack(kde_result_list, dim=0) # (N,M,D)
+        # (N,M,D)      (N,M,D)           (1,M,D)                         (1,1,D)
+        kde_result = kde_result / ((kde_result.sum(0,keepdim=True) * deltax.unsqueeze(0).unsqueeze(1))
+
+        # Compute TV between all distributions for each pair of domains and dimension
+        #                                     (N,N,D)                                        (1,1,D)
+        # (N,N,D)     (N,1,M,D)                      (1,N,M,D)                                     
+        TV = 0.5 * (kde_result.unsqueeze(1) - kde_result.unsqueeze(0)).abs().sum(2) * (deltax.unsqueeze(0).unsqueeze(1))
+        return TV
+
+    def compute_p_dist(phis, method='TV', device='cpu', M=200):
+        if method == 'TV':
+            return compute_TV_dist(phis, device=device, M=M)
+
 def regularize_model_selection(algorithm, evals, num_classes, device):
     """Regualrize model selection.
     Inputs:
@@ -71,31 +105,15 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
             phis_list.append(phis)
             ys_list.append(ys)
             
-        D = phis_list[0].shape[1]
         TV_list = []
         for y in range(num_classes):
             # list of per-domain tensors for y
-            phis = [phis_list[i][ys_list[i] == y] for i in range(len(phis_list))] # each tensor i is (Bi,D)
-            phis = torch.cat(phis, dim=0).to(device)
-            # Create per-dimension grid
-            stds = phis.std(dim=0) # (D,)
-            max_vals = torch.max(phis, dim=0)[0] # (D,)
-            max_vals = max_vals + stds
-            min_vals = torch.min(phis, dim=0)[0] # (D,)
-            min_vals = min_vals - stds
-            deltax = (max_val - min_val) / (M - 1) # (D,)
-            grid = torch.stack([torch.linspace(min_vals[d], max_vals[d], M, device=device) for d in range(D)], dim=1)  # (M, D)
-            # Per-dimension bandwidth (e.g., Silverman's rule of thumb)
-            bandwidths = 1.06 * stds * phis.size()[0] ** (-1 / 5)
-            kde_result_list = [gaussian_kde(phi, grid, bandwidth=bandwidths) for phi in phis_list] # list of (M,D) tensors
-            kde_result = torch.stack(kde_result_list, dim=0) # (N,M,D)
-            # (N,M,D)      (N,M,D)           (1,M,D)                         (1,1,D)
-            kde_result = kde_result / ((kde_result.sum(0,keepdim=True) * deltax.unsqueeze(0).unsqueeze(1))
-
-            #                                     (N,N,D)                                        (1,1,D)
-            # (N,N,D)     (N,1,M,D)                      (1,N,M,D)                                     
-            TV = 0.5 * (kde_result.unsqueeze(1) - kde_result.unsqueeze(0)).abs().sum(2) * (deltax.unsqueeze(0).unsqueeze(1))
+            phis_y = [phis_list[i][ys_list[i] == y] for i in range(len(phis_list))] # each tensor i is (Bi,D)
             
+            P_dist = compute_p_dist(phis_y, method='TV', device=device, M=M)
+            TV = P_dist
+            
+            # Take max over pairs of domains split into 'in' and 'out' w/ one domain (the test domain) excluded for each dimension
             TV_avail_list = [0]*N
             for i in range(ind_split.size(0)): # N
                 TTV = TV[ind_split[i]][:,ind_split[i]]
@@ -105,8 +123,14 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
                     TV_avail_list[ind_split[i][j]] = torch.amax(sub, dim=(0, 1))  # inserts (D,) tensor
             TV_avail = torch.stack(TV_avail_list, dim=0) # (N,D)
             TV_list.append(TV_avail) # list of (N,D,)
+        
+        # Combine TVs from all classes
         TV = torch.stack(TV_list,dim=0) # (num_classes, N, D)
+        
+        # Take max over classes
         TV = TV.max(dim=0)[0] # (N,D,)
+        
+        # Take mean over dimensions
         Vf = TV.mean(dim=1) # (N,)
         
         # reset featurizer back to train. Restore modules that were in eval prior to that.
