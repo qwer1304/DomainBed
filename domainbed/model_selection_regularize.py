@@ -124,7 +124,7 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
     Output:
         Vf: Tensor (N,) for each domain excluded
     """
-    dist_method = 'MMD2'
+    dist_method = 'TV'
     N = len(evals) # total number of domains, includes both "in" and "out" splits
     M = 200 # grid for kde
     ind_in = [i for i, (s,_,_) in enumerate(evals) if "in" in s]
