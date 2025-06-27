@@ -107,11 +107,10 @@ def compute_TV_dist(phis_y, device='cpu', M=200):
     #                                     (N,N,D)                                        (1,1,D)
     # (N,N,D)     (N,1,M,D)                      (1,N,M,D)                                     
     TV = 0.5 * (kde_result.unsqueeze(1) - kde_result.unsqueeze(0)).abs().sum(2) * (deltax.unsqueeze(0).unsqueeze(1))
-    if torch.isnan(TV).any():
-        print('deltax:',deltax)
-        print('TV:',TV)
-        print('kde_norm:',kde_norm)
-        print('kde:',kde_result)
+    print('deltax:',deltax)
+    print('TV:',TV)
+    print('kde_norm:',kde_norm)
+    print('kde:',kde_result)
     return TV
 
 def compute_p_dist(phis, method='TV', device='cpu', M=200):
