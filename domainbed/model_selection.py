@@ -13,7 +13,7 @@ def get_test_records(records):
     records with *only* that single test env and no other test envs)"""
     return records.filter(lambda r: len(r['args']['test_envs']) == 1)
 
-def calculate_r0(step_accs):
+def calculate_r0(step_accs, modselreg):
     """Calculates r0 coefficient for regularizing model validation accuracy.
         Inputs:
             step_acc: Q (list) of dictionaries with val_acc, test_acc, Vf and step keys.
@@ -21,7 +21,7 @@ def calculate_r0(step_accs):
             r0
     """
     accs = step_accs.select('val_acc')
-    M_hat = step_accs.filter_lop("val_acc", accs.max() - 0.1, operator.gt)
+    M_hat = step_accs.filter_lop("val_acc", accs.max() - modselreg, operator.gt)
     n_mod = len(M_hat)
     if n_mod <= 1:
         warnings.warn(f"Only {n_mod} models available for regularization. r0=0.")
@@ -44,7 +44,7 @@ class SelectionMethod:
         raise NotImplementedError
 
     @classmethod
-    def hparams_accs(self, test_env, records, modselreg=False):
+    def hparams_accs(self, test_env, records, modselreg=None):
         """
         Given all records from a single (dataset, algorithm, test env) triplet,
         return a sorted list of (run_acc, records, hparams_seed) tuples.
@@ -62,7 +62,7 @@ class SelectionMethod:
         )
 
     @classmethod
-    def sweep_acc(self, test_env, records, modselreg=False):
+    def sweep_acc(self, test_env, records, modselreg=None):
         """
         Given all records from a single (dataset, algorithm, test env) triplet,
         return the mean test acc of the k runs with the top val accs.
@@ -82,7 +82,7 @@ class OracleSelectionMethod(SelectionMethod):
     name = "test-domain validation set (oracle)"
 
     @classmethod
-    def run_acc(self, test_env, run_records, modselreg=False):
+    def run_acc(self, test_env, run_records, modselreg=None):
         # filters records with a SINGLE test environment
         run_records = run_records.filter(lambda r:
             len(r['args']['test_envs']) == 1)
@@ -98,7 +98,7 @@ class OracleSelectionMethod(SelectionMethod):
                 'test_acc': test_records[0]['env{}_in_acc'.format(test_env)],
                 'step':     record['step'],
         }
-        if modselreg:
+        if modselreg is not None:
             ret_val.update(Vf = record[Vf_key])
         return ret_val
 
@@ -123,12 +123,12 @@ class IIDAccuracySelectionMethod(SelectionMethod):
                 'test_acc': test_records[0]['env{}_in_acc'.format(test_env)],
                 'step':     record['step'],
         }
-        if modselreg:
+        if modselreg is not None:
             ret_val.update(Vf = record[Vf_key])
         return ret_val
 
     @classmethod
-    def run_acc(self, test_env, run_records, modselreg=False):
+    def run_acc(self, test_env, run_records, modselreg=None):
         # get_test_records filters records with a SINGLE test environment
         test_records = get_test_records(run_records)
         if not len(test_records):
@@ -156,12 +156,12 @@ class IIDAutoLRAccuracySelectionMethod(SelectionMethod):
                 'test_acc': test_records[0]['env{}_in_acc'.format(test_env)],
                 'step':     record['step'],
         }
-        if modselreg:
+        if modselreg is not None:
             ret_val.update(Vf = record[Vf_key])
         return ret_val
 
     @classmethod
-    def run_acc(self, test_env, run_records, modselreg=False):
+    def run_acc(self, test_env, run_records, modselreg=None):
         # get_test_records filters records with a SINGLE test environment
         test_records = get_test_records(run_records)
         if not len(test_records):
@@ -231,12 +231,12 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
                 'val_acc':  val_acc,
                 'test_acc': test_records[0]['env{}_in_acc'.format(test_env)],
         }
-        if modselreg:
+        if modselreg is not None:
             ret_val.update(Vf = test_records[0]['env{}_in_Vf'.format(test_env)])
         return ret_val
 
     @classmethod
-    def run_acc(self, test_env, records, modselreg=False):
+    def run_acc(self, test_env, records, modselreg=None):
         # records are all run records (i.e., for a single dataset, algorithm, test_env, hash_seed)
         # group() returns a list of (group, group_records)
         """Need to handle the case of _step_acc() returning None, w/o calling it twice (for efficiency). So:
@@ -252,8 +252,8 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
             # step_acc() returns a dictionary with val_acc, test_acc and Vf keys
             # step_accs is a query (list) of run step_acc() results grouped according to step
             # argmax returns the dictionary with biggest val_acc.
-            if modselreg:
-                r0 = calculate_r0(step_accs)
+            if modselreg is not None:
+                r0 = calculate_r0(step_accs, modselreg)
                 step_accs_reg = copy.deepcopy(step_accs)
                 step_accs_reg = step_accs_reg.map(lambda r: 
                         (r.__setitem__('val_acc', r['val_acc'] - r0*r['Vf']), r)[1])

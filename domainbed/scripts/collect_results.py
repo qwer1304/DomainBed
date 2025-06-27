@@ -111,7 +111,7 @@ def print_table(table, header_text, row_labels, col_labels, colwidth=10,
         print("\\end{tabular}}")
         print("\\end{center}")
 
-def print_results_tables(records, selection_method, latex, start_step=0, end_step=None, modselreg=False):
+def print_results_tables(records, selection_method, latex, start_step=0, end_step=None, modselreg=None):
     """Given all records, print a results table for each dataset."""
 
     if start_step > 0:
@@ -222,7 +222,7 @@ if __name__ == "__main__":
     parser.add_argument("--auto_lr", action="store_true")
     parser.add_argument("--start_step", type=int, default=0, help="Start step (inclusive) to begin analysis at.")
     parser.add_argument("--end_step", type=int, default=None, help="End step (exclusive) to end analysis at.")
-    parser.add_argument("--modselreg", action="store_true", help="Regularize model selection.")
+    parser.add_argument("--modselreg", type=float, nargs='?', default=None, const=0.1, help="Regularize model selection.")
     args = parser.parse_args()
     if args.end_step is not None and args.start_step >= args.end_step:
         raise ValueError("start step must be smaller than end step")
