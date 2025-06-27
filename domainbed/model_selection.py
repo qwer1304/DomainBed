@@ -250,6 +250,7 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
             # argmax returns the dictionary with biggest val_acc.
             if modselreg:
                 r0 = calculate_r0(step_accs)
+                print(r0,step_accs)
                 step_accs = step_accs.map(lambda r: 
                     r.update(val_acc = (r['val_acc'] - r0*r['Vf'])))
             print(step_accs)
