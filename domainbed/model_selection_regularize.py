@@ -22,6 +22,7 @@ def gaussian_kde(samples, grid, bandwidth=0.1):
         bandwidth = bandwidth.view(1, 1, D)  # reshape for broadcasting
         
     diffs = (grid_exp - samples_exp) / bandwidth   # (M, B, D)
+    print('diffs:',diffs)
     kernels = torch.exp(-0.5 * diffs ** 2) / (bandwidth * (2 * torch.pi) ** 0.5)  # (M, B, D)
 
     kde = kernels.mean(dim=1)  # (M,D)
@@ -100,7 +101,6 @@ def compute_TV_dist(phis_y, device='cpu', M=200):
     kde_result_list = [gaussian_kde(phi, grid, bandwidth=bandwidths) for phi in phis_y] # list of (M,D) tensors
     kde_result = torch.stack(kde_result_list, dim=0) # (N,M,D)
     # (N,M,D)      (N,M,D)           (1,M,D)                         (1,1,D)
-    print('bandwidths:',bandwidths)
     kde_norm = kde_result.sum(0,keepdim=True) # (N,M,1)
     kde_result = kde_result / (kde_norm * deltax.unsqueeze(0).unsqueeze(1))
 
