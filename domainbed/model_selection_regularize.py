@@ -22,10 +22,10 @@ def gaussian_kde(samples, grid, bandwidth=0.1):
         bandwidth = bandwidth.view(1, 1, D)  # reshape for broadcasting
         
     diffs = (grid_exp - samples_exp) / bandwidth   # (M, B, D)
-    print('diffs:',diffs)
     kernels = torch.exp(-0.5 * diffs ** 2) / (bandwidth * (2 * torch.pi) ** 0.5)  # (M, B, D)
 
     kde = kernels.mean(dim=1)  # (M,D)
+    print('kde:',kde)
     return kde
 
 def compute_MMD2_dist(phis_y, device='cpu'):
