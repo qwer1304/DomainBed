@@ -19,12 +19,11 @@ def calculate_r0(step_accs):
         Output:
             r0
     """
-    print('step_accs:',step_accs)
     accs = step_accs.select('val_acc')
     M_hat = step_accs.filter_lop("val_acc", accs.max() - 0.1, operator.gt)
-    print('accs:',accs, 'max:',accs.max(),'M_hat:',M_hat)
-    print('val_acc:',M_hat.select('val_acc'),'Vf:',M_hat.select('Vf'))
-    print(M_hat.select('val_acc').std(),M_hat.select('Vf').std())
+    n_mod = len(M_hat)
+    if n_mod <= 1
+        warnings.warn(f"Only {n_mod} models available for regularization. r0=0.")
     r0 = M_hat.select('val_acc').std() / (M_hat.select('Vf').std() + 1e-6)
     return r0
 
