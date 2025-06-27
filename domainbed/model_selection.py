@@ -252,6 +252,7 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
                 r0 = calculate_r0(step_accs)
                 step_accs = step_accs.map(lambda r: 
                     r.update(val_acc = (r['val_acc'] - r0*r['Vf'])))
+            print(step_accs)
             return step_accs.argmax('val_acc')
         else:
             return None
