@@ -256,7 +256,8 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
                 step_accs_reg = step_accs.map(lambda r: 
                     (r.__setitem__('val_acc', r['val_acc'] - r0*r['Vf']), r)[1])
                 val_acc_reg, ind = step_accs_reg.argmax('val_acc', with_index=True)
-                print('val_acc_reg:',val_acc_reg,'ind:',ind,'step_accs[ind]:',step_accs[ind])
+                print('val_acc_reg:',val_acc_reg,'ind:',ind)
+                print('step_accs:',step_accs,'step_accs_reg:',step_accs_reg)
                 return step_accs[ind]
             else:
                 return step_accs.argmax('val_acc')
