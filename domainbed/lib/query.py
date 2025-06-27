@@ -143,8 +143,6 @@ class Q(object):
     def argmax(self, selector, with_index=False):
         selector = make_selector_fn(selector)
         index, item = max(enumerate(self._list), key=lambda x: selector(x[1]))
-        print('index:',index,'item:',item)
-        print(self._list)
         if with_index:
             return item, index
         else:
