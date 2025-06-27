@@ -5,6 +5,7 @@ import numpy as np
 from collections import namedtuple
 import warnings
 import operator
+import copy
 
 
 def get_test_records(records):
@@ -253,8 +254,9 @@ class LeaveOneOutSelectionMethod(SelectionMethod):
             # argmax returns the dictionary with biggest val_acc.
             if modselreg:
                 r0 = calculate_r0(step_accs)
-                step_accs_reg = step_accs.map(lambda r: 
-                    (r.__setitem__('val_acc', r['val_acc'] - r0*r['Vf']), r)[1])
+                step_accs_reg = copy.deepcopy(
+                    step_accs.map(lambda r: 
+                        (r.__setitem__('val_acc', r['val_acc'] - r0*r['Vf']), r)[1]))
                 val_acc_reg, ind = step_accs_reg.argmax('val_acc', with_index=True)
                 print('val_acc_reg:',val_acc_reg,'ind:',ind)
                 print('step_accs:',step_accs,'step_accs_reg:',step_accs_reg)
