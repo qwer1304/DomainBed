@@ -27,39 +27,92 @@ def gaussian_kde(samples, grid, bandwidth=0.1):
     kde = kernels.mean(dim=1)  # (M,D)
     return kde
 
-    def compute_TV_dist(phis_y, method='TV', device='cpu', M=200):
-        # phis_y: list of tensors (Bi,D)
-        phis = torch.cat(phis_y, dim=0).to(device)
-        B, D = phis.size()
-        
-        stds = phis.std(dim=0) # (D,)
+def compute_MMD2_dist(phis_y, device='cpu'):
+    """
+    Non-differentiable GPU-efficient MMD^2 matrix.
+    
+    Args:
+        phis_: list of N tensors, each (Bi, D), on GPU
 
-        # Per-dimension bandwidth (e.g., Silverman's rule of thumb)
-        bandwidths = 1.06 * stds * B ** (-1 / 5)
+    Returns:
+        (N, N, D) tensor of MMD^2 values on GPU
+    """
+ 
+    phis = torch.cat(phis_y, dim=0).to(device)
+    B, D = phis.size()
+    N = len(phis_y)
 
-        # Create per-dimension grid
-        max_vals = torch.max(phis, dim=0)[0] # (D,)
-        max_vals = max_vals + stds
-        min_vals = torch.min(phis, dim=0)[0] # (D,)
-        min_vals = min_vals - stds
-        deltax = (max_val - min_val) / (M - 1) # (D,)
-        grid = torch.stack([torch.linspace(min_vals[d], max_vals[d], M, device=device) for d in range(D)], dim=1)  # (M, D)
+    stds = phis.std(dim=0) # (D,)
 
-        # Compute KDE for each phi in y's list over the grid for each dimension d
-        kde_result_list = [gaussian_kde(phi, grid, bandwidth=bandwidths) for phi in phis_y] # list of (M,D) tensors
-        kde_result = torch.stack(kde_result_list, dim=0) # (N,M,D)
-        # (N,M,D)      (N,M,D)           (1,M,D)                         (1,1,D)
-        kde_result = kde_result / ((kde_result.sum(0,keepdim=True) * deltax.unsqueeze(0).unsqueeze(1))
+    # Per-dimension bandwidth (e.g., Silverman's rule of thumb)
+    bandwidths = 1.06 * stds * B ** (-1 / 5) # (D,)
 
-        # Compute TV between all distributions for each pair of domains and dimension
-        #                                     (N,N,D)                                        (1,1,D)
-        # (N,N,D)     (N,1,M,D)                      (1,N,M,D)                                     
-        TV = 0.5 * (kde_result.unsqueeze(1) - kde_result.unsqueeze(0)).abs().sum(2) * (deltax.unsqueeze(0).unsqueeze(1))
-        return TV
+    mmds = torch.empty(N, N, D, device=device)
 
-    def compute_p_dist(phis, method='TV', device='cpu', M=200):
-        if method == 'TV':
-            return compute_TV_dist(phis, device=device, M=M)
+    # Precompute self terms (K_xx) for each domain
+    self_terms = []
+    for i in range(N):
+        x = phis_y[i]  # (Bi, D)
+        x1 = x.unsqueeze(1)  # (Bi, 1, D)
+        x2 = x.unsqueeze(0)  # (1, Bi, D)
+        diff = x1 - x2       # (Bi, Bi, D)
+        K_xx = torch.exp(-bandwidths.unsqueeze(0).unsqueeze(1) * diff.pow(2))  # (Bi, Bi, D)
+        self_terms.append(K_xx.mean(dim=(0, 1)))  # (D,)
+
+    # Compute upper triangle (i <= j) and mirror to lower triangle
+    for i in range(N):
+        x = phis_y[i]
+        for j in range(i, N):
+            y = phis_y[j]
+
+            x_ = x.unsqueeze(1)  # (Bi, 1, D)
+            y_ = y.unsqueeze(0)  # (1, Bj, D)
+            diff = x_ - y_       # (Bi, Bj, D)
+            K_xy = torch.exp(-bandwidths.unsqueeze(0).unsqueeze(1) * diff.pow(2))  # (Bi, Bj, D)
+
+            mmd = self_terms[i] + self_terms[j] - 2 * K_xy.mean(dim=(0, 1))  # (D,)
+
+            mmds[i, j] = mmd
+            if i != j:
+                mmds[j, i] = mmd  # enforce symmetry
+
+    return mmds  # shape: (N, N, D)
+
+def compute_TV_dist(phis_y, device='cpu', M=200):
+    # phis_y: list of tensors (Bi,D)
+    phis = torch.cat(phis_y, dim=0).to(device)
+    B, D = phis.size()
+
+    stds = phis.std(dim=0) # (D,)
+
+    # Per-dimension bandwidth (e.g., Silverman's rule of thumb)
+    bandwidths = 1.06 * stds * B ** (-1 / 5) # (D,)
+
+    # Create per-dimension grid
+    max_vals = torch.max(phis, dim=0)[0] # (D,)
+    max_vals = max_vals + stds
+    min_vals = torch.min(phis, dim=0)[0] # (D,)
+    min_vals = min_vals - stds
+    deltax = (max_val - min_val) / (M - 1) # (D,)
+    grid = torch.stack([torch.linspace(min_vals[d], max_vals[d], M, device=device) for d in range(D)], dim=1)  # (M, D)
+
+    # Compute KDE for each phi in y's list over the grid for each dimension d
+    kde_result_list = [gaussian_kde(phi, grid, bandwidth=bandwidths) for phi in phis_y] # list of (M,D) tensors
+    kde_result = torch.stack(kde_result_list, dim=0) # (N,M,D)
+    # (N,M,D)      (N,M,D)           (1,M,D)                         (1,1,D)
+    kde_result = kde_result / ((kde_result.sum(0,keepdim=True) * deltax.unsqueeze(0).unsqueeze(1))
+
+    # Compute TV between all distributions for each pair of domains and dimension
+    #                                     (N,N,D)                                        (1,1,D)
+    # (N,N,D)     (N,1,M,D)                      (1,N,M,D)                                     
+    TV = 0.5 * (kde_result.unsqueeze(1) - kde_result.unsqueeze(0)).abs().sum(2) * (deltax.unsqueeze(0).unsqueeze(1))
+    return TV
+
+def compute_p_dist(phis, method='TV', device='cpu', M=200):
+    if method == 'TV':
+        return compute_TV_dist(phis, device=device, M=M)
+    elif method == 'MMD2':
+        return compute_MMD2_dist(phis, device=device)
 
 def regularize_model_selection(algorithm, evals, num_classes, device):
     """Regualrize model selection.
@@ -71,6 +124,7 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
     Output:
         Vf: Tensor (N,) for each domain excluded
     """
+    dist_method = 'MMD2'
     N = len(evals) # total number of domains, includes both "in" and "out" splits
     M = 200 # grid for kde
     ind_in = [i for i, (s,_,_) in enumerate(evals) if "in" in s]
@@ -110,7 +164,7 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
             # list of per-domain tensors for y
             phis_y = [phis_list[i][ys_list[i] == y] for i in range(len(phis_list))] # each tensor i is (Bi,D)
             
-            P_dist = compute_p_dist(phis_y, method='TV', device=device, M=M)
+            P_dist = compute_p_dist(phis_y, method=dist_method, device=device, M=M)
             
             # Take max over pairs of domains split into 'in' and 'out' w/ one domain (the test domain) excluded for each dimension
             Dist_avail_list = [0]*N
