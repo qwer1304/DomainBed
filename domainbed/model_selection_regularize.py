@@ -105,33 +105,32 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
             phis_list.append(phis)
             ys_list.append(ys)
             
-        TV_list = []
+        Dist_list = []
         for y in range(num_classes):
             # list of per-domain tensors for y
             phis_y = [phis_list[i][ys_list[i] == y] for i in range(len(phis_list))] # each tensor i is (Bi,D)
             
             P_dist = compute_p_dist(phis_y, method='TV', device=device, M=M)
-            TV = P_dist
             
             # Take max over pairs of domains split into 'in' and 'out' w/ one domain (the test domain) excluded for each dimension
-            TV_avail_list = [0]*N
+            Dist_avail_list = [0]*N
             for i in range(ind_split.size(0)): # N
-                TTV = TV[ind_split[i]][:,ind_split[i]]
+                PP_dist = P_dist[ind_split[i]][:,ind_split[i]]
                 for j in range(ind_split.size(1)):
                     mask = torch.arange(ind_split.size(1)) != j  # exclude index j
-                    sub = TTV[mask][:, mask]      # (k-1, k-1, D)
-                    TV_avail_list[ind_split[i][j]] = torch.amax(sub, dim=(0, 1))  # inserts (D,) tensor
-            TV_avail = torch.stack(TV_avail_list, dim=0) # (N,D)
-            TV_list.append(TV_avail) # list of (N,D,)
+                    sub = PP_dist[mask][:, mask]      # (k-1, k-1, D)
+                    Dist_avail_list[ind_split[i][j]] = torch.amax(sub, dim=(0, 1))  # inserts (D,) tensor
+            Dist_avail = torch.stack(Dist_avail_list, dim=0) # (N,D)
+            Dist_list.append(Dist_avail) # list of (N,D,)
         
-        # Combine TVs from all classes
-        TV = torch.stack(TV_list,dim=0) # (num_classes, N, D)
+        # Combine P_dist's from all classes
+        P_dist = torch.stack(Dist_list,dim=0) # (num_classes, N, D)
         
         # Take max over classes
-        TV = TV.max(dim=0)[0] # (N,D,)
+        P_dist = P_dist.max(dim=0)[0] # (N,D,)
         
         # Take mean over dimensions
-        Vf = TV.mean(dim=1) # (N,)
+        Vf = P_dist.mean(dim=1) # (N,)
         
         # reset featurizer back to train. Restore modules that were in eval prior to that.
         algorithm.featurizer.train()
