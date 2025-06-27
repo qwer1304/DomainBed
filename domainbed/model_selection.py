@@ -19,6 +19,7 @@ def calculate_r0(step_accs):
         Output:
             r0
     """
+    print('step_accs:',step_accs)
     accs = step_accs.select('val_acc')
     M_hat = step_accs.filter_lop("val_acc", accs.max() - 0.1, operator.gt)
     print('accs:',accs, 'max:',accs.max(),'M_hat:',M_hat)
