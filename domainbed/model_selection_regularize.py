@@ -46,7 +46,14 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
         torch.tensor(ind_out)
     ], dim=0)
     with torch.no_grad():
+        # set featurizer to eval. Keep modules that were in eval prior to s.t. 
+        # we can set them back to eval after setting the featurizer back to train.
+        freeze_bn = []
+        for m in algorithm.featurizer.modules():
+            if not m.training:
+                freeze_bn.append(m)
         algorithm.featurizer.eval()
+
         phis_list = []
         ys_list = []
         for name, loader, weights in evals:
@@ -96,5 +103,11 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
         TV = torch.stack(TV_list,dim=0) # (num_classes, N, D)
         TV = TV.max(dim=0)[0] # (N,D,)
         Vf = TV.mean(dim=1) # (N,)
+        
+        # reset featurizer back to train. Restore modules that were in eval prior to that.
+        algorithm.featurizer.train()
+        for m in freeze_bn:
+            m.eval()
+
         return Vf
                         
