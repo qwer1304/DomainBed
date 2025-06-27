@@ -165,6 +165,7 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
             phis_y = [phis_list[i][ys_list[i] == y] for i in range(len(phis_list))] # each tensor i is (Bi,D)
             
             P_dist = compute_p_dist(phis_y, method=dist_method, device=device, M=M)
+            print('P_dist:',P_dist,dist_method)
             
             # Take max over pairs of domains split into 'in' and 'out' w/ one domain (the test domain) excluded for each dimension
             Dist_avail_list = [0]*N
