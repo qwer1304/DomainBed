@@ -146,7 +146,7 @@ def compute_p_dist(phis, method='TV', device='cpu', M=200):
     if method == 'TV':
         return compute_TV_dist(phis, device=device, M=M)
     elif method == 'MMD2':
-        return compute_MMD2_dist(phis, device=device)
+        return compute_MMD2_dist(phis, device=device, chunk_size=M)
 
 def regularize_model_selection(algorithm, evals, dist_method, num_classes, device):
     """Regualrize model selection.
@@ -159,7 +159,7 @@ def regularize_model_selection(algorithm, evals, dist_method, num_classes, devic
         Vf: Tensor (N,) for each domain excluded
     """
     N = len(evals) # total number of domains, includes both "in" and "out" splits
-    M = 200 # grid for kde
+    M = 512 # grid for kde / chunk size for MMD2
     ind_in = [i for i, (s,_,_) in enumerate(evals) if "in" in s]
     ind_out = [i for i, (s,_,_) in enumerate(evals) if "out" in s]
     ind_split = torch.stack([
