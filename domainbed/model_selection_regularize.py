@@ -88,10 +88,9 @@ def compute_MMD2_dist(phis_y, device='cpu'):
     for i in range(N):
         x = phis_y[i]  # (Bi, D)
         
-        print('x.size:',x.size())
         K_xx = gaussian_kde_chunked(x, x, bandwidth=bandwidths, chunk_size=512) # (Bi,D)
 
-        self_terms.append(K_xx.mean(dim=1))  # (D,)
+        self_terms.append(K_xx.mean(dim=0))  # (D,)
 
     # Compute upper triangle (i < j) and mirror to lower triangle
     for i in range(N):
