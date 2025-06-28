@@ -37,8 +37,8 @@ def compute_MMD2_dist(phis_y, device='cpu'):
     Returns:
         (N, N, D) tensor of MMD^2 values on GPU
     """
- 
-    phis = torch.cat(phis_y, dim=0).to(device)
+
+    phis = torch.cat(phis_y, dim=0).to(device)  # (B, D)
     B, D = phis.size()
     N = len(phis_y)
 
@@ -53,28 +53,26 @@ def compute_MMD2_dist(phis_y, device='cpu'):
     self_terms = []
     for i in range(N):
         x = phis_y[i]  # (Bi, D)
-        x1 = x.unsqueeze(1)  # (Bi, 1, D)
-        x2 = x.unsqueeze(0)  # (1, Bi, D)
-        diff = x1 - x2       # (Bi, Bi, D)
-        K_xx = torch.exp(-bandwidths.unsqueeze(0).unsqueeze(1) * diff.pow(2))  # (Bi, Bi, D)
-        self_terms.append(K_xx.mean(dim=(0, 1)))  # (D,)
+        
+        K_xx = gaussian_kde(x, x, bandwidth=bandwidths) # (Bi,D)
+        self_terms.append(K_xx.mean(dim=1))  # (D,)
 
-    # Compute upper triangle (i <= j) and mirror to lower triangle
+    # Compute upper triangle (i < j) and mirror to lower triangle
     for i in range(N):
         x = phis_y[i]
-        for j in range(i, N):
+        for j in range(i+1, N):
             y = phis_y[j]
 
-            x_ = x.unsqueeze(1)  # (Bi, 1, D)
-            y_ = y.unsqueeze(0)  # (1, Bj, D)
-            diff = x_ - y_       # (Bi, Bj, D)
-            K_xy = torch.exp(-bandwidths.unsqueeze(0).unsqueeze(1) * diff.pow(2))  # (Bi, Bj, D)
+            K_xy = gaussian_kde(x, y, bandwidth=bandwidths) # (Bi,D)
 
-            mmd = self_terms[i] + self_terms[j] - 2 * K_xy.mean(dim=(0, 1))  # (D,)
+            mmd = self_terms[i] + self_terms[j] - 2 * K_xy.mean(dim=0)  # (D,)
 
             mmds[i, j] = mmd
-            if i != j:
-                mmds[j, i] = mmd  # enforce symmetry
+            mmds[j, i] = mmd  # enforce symmetry
+    
+    # set the diagonals
+    diag_indices = torch.arange(N)  # (N,),
+    mmds[diag_indices, diag_indices, :] = 1 / (bandwidths * (2 * torch.pi) ** 0.5)
 
     return mmds  # shape: (N, N, D)
 
@@ -115,7 +113,7 @@ def compute_p_dist(phis, method='TV', device='cpu', M=200):
     elif method == 'MMD2':
         return compute_MMD2_dist(phis, device=device)
 
-def regularize_model_selection(algorithm, evals, num_classes, device):
+def regularize_model_selection(algorithm, evals, dist_method, num_classes, device):
     """Regualrize model selection.
     Inputs:
         algorithm:
@@ -125,7 +123,6 @@ def regularize_model_selection(algorithm, evals, num_classes, device):
     Output:
         Vf: Tensor (N,) for each domain excluded
     """
-    dist_method = 'TV'
     N = len(evals) # total number of domains, includes both "in" and "out" splits
     M = 200 # grid for kde
     ind_in = [i for i, (s,_,_) in enumerate(evals) if "in" in s]

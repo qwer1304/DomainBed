@@ -128,8 +128,8 @@ if __name__ == "__main__":
         help='Print the last result instead of averaging over all steps from the last print.')
     parser.add_argument('--set_seed_every_epoch', action='store_true',    
         help='Set seeds to the current epoch every epoch start.')
-    parser.add_argument('--regularize_model_selection', action='store_true',    
-        help='Regularize model selection.')
+    parser.add_argument('--regularize_model_selection', type=str, nargs='?', default=None, const='TV',    
+        help='Regularize model selection method.')
     
     args = parser.parse_args()
 
@@ -377,8 +377,8 @@ if __name__ == "__main__":
                 acc = misc.accuracy(algorithm, loader, weights, device)
                 results[name+'_acc'] = acc
             
-            if args.regularize_model_selection:
-                Vf = regularize_model_selection(algorithm, evals, dataset.num_classes, device).tolist()
+            if args.regularize_model_selection is not None:
+                Vf = regularize_model_selection(algorithm, evals, args.regularize_model_selection, dataset.num_classes, device).tolist()
             else:
                 Vf = [0]*len(eval_loader_names)
             for i,name in enumerate(eval_loader_names):
