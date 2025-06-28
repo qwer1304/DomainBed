@@ -27,6 +27,40 @@ def gaussian_kde(samples, grid, bandwidth=0.1):
     kde = kernels.mean(dim=1)  # (M,D)
     return kde
 
+def gaussian_kde_chunked(samples, grid, bandwidth=0.1, chunk_size=1024):
+    """
+    KDE per column using chunks to avoid GPU OOM.
+    
+    Args:
+        samples: (B, D)
+        grid:    (M, D)
+        bandwidth: float or (D,)
+        chunk_size: int, number of grid points to process at a time
+        
+    Returns:
+        kde: (M, D)
+    """
+    B, D = samples.shape
+    M = grid.shape[0]
+    kde = torch.empty(M, D, device=samples.device)
+
+    # Prepare bandwidth tensor for broadcasting
+    if isinstance(bandwidth, torch.Tensor):
+        bandwidth = bandwidth.view(1, D)
+
+    for start in range(0, M, chunk_size):
+        end = min(start + chunk_size, M)
+        grid_chunk = grid[start:end]  # shape (chunk_size, D)
+
+        # (chunk_size, 1, D) - (1, B, D)
+        diffs = (grid_chunk.unsqueeze(1) - samples.unsqueeze(0)) / bandwidth  # (chunk_size, B, D)
+        kernels = torch.exp(-0.5 * diffs ** 2) / (bandwidth * (2 * torch.pi) ** 0.5)
+        kde_chunk = kernels.mean(dim=1)  # (chunk_size, D)
+
+        kde[start:end] = kde_chunk
+
+    return kde
+
 def compute_MMD2_dist(phis_y, device='cpu'):
     """
     Non-differentiable GPU-efficient MMD^2 matrix.
@@ -54,7 +88,9 @@ def compute_MMD2_dist(phis_y, device='cpu'):
     for i in range(N):
         x = phis_y[i]  # (Bi, D)
         
-        K_xx = gaussian_kde(x, x, bandwidth=bandwidths) # (Bi,D)
+        print('x.size:',x.size())
+        K_xx = gaussian_kde_chunked(x, x, bandwidth=bandwidths, chunk_size=512) # (Bi,D)
+
         self_terms.append(K_xx.mean(dim=1))  # (D,)
 
     # Compute upper triangle (i < j) and mirror to lower triangle
@@ -63,7 +99,7 @@ def compute_MMD2_dist(phis_y, device='cpu'):
         for j in range(i+1, N):
             y = phis_y[j]
 
-            K_xy = gaussian_kde(x, y, bandwidth=bandwidths) # (Bi,D)
+            K_xy = gaussian_kde_chunked(x, y, bandwidth=bandwidths, chunk_size=512) # (Bi,D)
 
             mmd = self_terms[i] + self_terms[j] - 2 * K_xy.mean(dim=0)  # (D,)
 
